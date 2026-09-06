@@ -6,6 +6,7 @@ import FirebaseAuth
 
 struct MapScreen: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var activityService: ActivityService
     @StateObject private var spotService = SpotService()
     @StateObject private var userService = UserService()
     @StateObject private var locationManager = LocationManager()
@@ -608,7 +609,14 @@ struct MapScreen: View {
                 
                 HStack(spacing: 6) {
                     NavigationLink(destination: FriendsListView()) {
-                        mapToolbarIcon("person.2.fill")
+                        HStack(spacing: 4) {
+                            mapToolbarIcon("person.2.fill")
+                            if activityService.homeBadgeCount > 0 {
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 8, height: 8)
+                            }
+                        }
                     }
                     
                     Button(action: { showSkateShopsSheet = true }) {
@@ -869,4 +877,5 @@ struct MapScreen: View {
 
 #Preview {
     MapScreen()
+        .environmentObject(ActivityService())
 }

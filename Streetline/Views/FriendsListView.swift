@@ -9,12 +9,15 @@ import SwiftUI
 import FirebaseAuth
 
 struct FriendsListView: View {
+    @EnvironmentObject var activityService: ActivityService
     @StateObject private var userService = UserService()
     @State private var friends: [UserProfile] = []
     @State private var pendingSentProfiles: [UserProfile] = []
     @State private var pendingReceived: [(FriendRequest, UserProfile)] = []
     @State private var isLoading = true
     @State private var showAddFriend = false
+    @State private var profileToOpen: UserProfile?
+    @State private var chatToOpen: UserProfile?
     
     private var isLoggedIn: Bool {
         Auth.auth().currentUser != nil
@@ -60,21 +63,26 @@ struct FriendsListView: View {
                 } else {
                     List {
                         if !pendingReceived.isEmpty {
-                            Section("Requests") {
+                            Section("Requests (\(pendingReceived.count))") {
                                 ForEach(pendingReceived, id: \.0.fromUid) { request, profile in
                                     HStack {
                                         Spacer(minLength: 0)
                                         
-                                        HStack(spacing: 12) {
-                                            FriendRow(profile: profile, onRemove: nil)
-                                            Spacer()
+                                        HStack(spacing: 10) {
+                                            FriendIdentity(profile: profile)
+                                            Circle()
+                                                .fill(Color.red)
+                                                .frame(width: 8, height: 8)
+                                            Spacer(minLength: 8)
                                             Button("Accept") {
                                                 Task { await acceptRequest(request.fromUid) }
                                             }
                                             .buttonStyle(.borderedProminent)
+                                            .controlSize(.small)
                                             Button("Decline", role: .destructive) {
                                                 Task { await declineRequest(request.fromUid) }
                                             }
+                                            .controlSize(.small)
                                         }
                                         .padding(.vertical, 8)
                                         .padding(.horizontal, 12)
@@ -99,27 +107,41 @@ struct FriendsListView: View {
                                     HStack {
                                         Spacer(minLength: 0)
                                         
-                                        HStack(spacing: 12) {
-                                            // Tapping the main card takes you to the user's profile page.
-                                            NavigationLink(destination: UserProfileView(profile: profile)) {
-                                                FriendRow(profile: profile, onRemove: nil)
+                                        HStack(spacing: 10) {
+                                            Button {
+                                                profileToOpen = profile
+                                            } label: {
+                                                FriendIdentity(profile: profile)
                                             }
                                             .buttonStyle(.plain)
                                             
-                                            Spacer(minLength: 0)
+                                            Spacer(minLength: 8)
                                             
-                                            // Small message bubble icon to indicate chatting is available
-                                            Image(systemName: "bubble.left.and.bubble.right.fill")
-                                                .foregroundColor(.blue)
-                                                .font(.subheadline)
-                                            
-                                            Button(role: .destructive) {
-                                                Task { await removeFriend(profile.uid) }
+                                            Button {
+                                                chatToOpen = profile
                                             } label: {
-                                                Text("Remove")
-                                                    .font(.subheadline)
+                                                Image(systemName: "bubble.left.and.bubble.right.fill")
+                                                    .foregroundColor(.blue)
+                                                    .font(.body)
+                                                    .overlay(alignment: .topTrailing) {
+                                                        if activityService.hasUnreadMessages(fromFriendUid: profile.uid) {
+                                                            Circle()
+                                                                .fill(Color.red)
+                                                                .frame(width: 8, height: 8)
+                                                                .offset(x: 4, y: -4)
+                                                        }
+                                                    }
                                             }
+                                            .buttonStyle(.plain)
+                                            .frame(width: 32, height: 32)
+                                            .accessibilityLabel("Message \(profile.username)")
+                                            
+                                            Button("Remove", role: .destructive) {
+                                                Task { await removeFriend(profile.uid) }
+                                            }
+                                            .font(.subheadline)
                                             .buttonStyle(.bordered)
+                                            .controlSize(.small)
                                         }
                                         .padding(.vertical, 8)
                                         .padding(.horizontal, 12)
@@ -144,9 +166,9 @@ struct FriendsListView: View {
                                     HStack {
                                         Spacer(minLength: 0)
                                         
-                                        HStack(spacing: 12) {
-                                            FriendRow(profile: profile, onRemove: nil)
-                                            Spacer()
+                                        HStack(spacing: 10) {
+                                            FriendIdentity(profile: profile)
+                                            Spacer(minLength: 8)
                                             Text("Pending")
                                                 .font(.caption)
                                                 .foregroundColor(.secondary)
@@ -209,6 +231,35 @@ struct FriendsListView: View {
         .task(id: Auth.auth().currentUser?.uid) {
             await loadFriendsWithCache()
         }
+        .background(
+            Group {
+                NavigationLink(
+                    destination: Group {
+                        if let profile = profileToOpen {
+                            UserProfileView(profile: profile)
+                        }
+                    },
+                    isActive: Binding(
+                        get: { profileToOpen != nil },
+                        set: { if !$0 { profileToOpen = nil } }
+                    )
+                ) { EmptyView() }
+                .hidden()
+                
+                NavigationLink(
+                    destination: Group {
+                        if let profile = chatToOpen {
+                            ConversationView(friendProfile: profile)
+                        }
+                    },
+                    isActive: Binding(
+                        get: { chatToOpen != nil },
+                        set: { if !$0 { chatToOpen = nil } }
+                    )
+                ) { EmptyView() }
+                .hidden()
+            }
+        )
         .sheet(isPresented: $showAddFriend) {
             AddFriendView(userService: userService) {
                 showAddFriend = false
@@ -328,30 +379,26 @@ struct FriendsListView: View {
     }
 }
 
-private struct FriendRow: View {
+private struct FriendIdentity: View {
     let profile: UserProfile
-    var onRemove: (() -> Void)?
     
     var body: some View {
         HStack(spacing: 12) {
             avatarView
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(profile.username)
                     .font(.headline)
                     .foregroundColor(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text("@\(profile.username)")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if onRemove != nil {
-                Button(role: .destructive, action: onRemove!) {
-                    Text("Remove")
-                        .font(.subheadline)
-                }
-            }
         }
-        .padding(.vertical, 4)
     }
     
     private var avatarView: some View {
@@ -396,5 +443,6 @@ private struct FriendRow: View {
 #Preview {
     NavigationStack {
         FriendsListView()
+            .environmentObject(ActivityService())
     }
 }

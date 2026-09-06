@@ -9,13 +9,17 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject var viewModel: LoginViewModel
+    @EnvironmentObject var activityService: ActivityService
     @State private var showSettings: Bool = false
     
     var body: some View {
-        ZStack {
+        let showFriendsDot = activityService.homeBadgeCount > 0
+        return ZStack {
             Image("CityImage")
                 .resizable()
                 .scaledToFill()
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                .clipped()
                 .ignoresSafeArea()
             
             LinearGradient(
@@ -57,43 +61,52 @@ struct HomeView: View {
                 Spacer(minLength: 0)
             }
             .ignoresSafeArea(edges: .top)
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                NavigationLink(destination: FriendsListView()) {
-                    Label("Friends", systemImage: "person.2.fill")
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(toolbarCapsule)
-                }
-            }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Label("Settings", systemImage: "wrench.fill")
+            
+            VStack {
+                HStack(spacing: 6) {
+                    NavigationLink(destination: FriendsListView()) {
+                        Label("Friends", systemImage: "person.2.fill")
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(toolbarCapsule)
                     }
-                    
-                    Button(role: .destructive) {
-                        Task {
-                            await viewModel.logout()
+                    if showFriendsDot {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 10, height: 10)
+                    }
+                    Spacer(minLength: 0)
+                    Menu {
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Label("Settings", systemImage: "wrench.fill")
+                        }
+                        
+                        Button(role: .destructive) {
+                            Task {
+                                await viewModel.logout()
+                            }
+                        } label: {
+                            Label("Logout", systemImage: "arrow.right.square.fill")
                         }
                     } label: {
-                        Label("Logout", systemImage: "arrow.right.square.fill")
+                        Label("Settings", systemImage: "wrench.fill")
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(toolbarCapsule)
                     }
-                } label: {
-                    Label("Settings", systemImage: "wrench.fill")
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(toolbarCapsule)
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                Spacer()
             }
         }
+        .background(Color.black.ignoresSafeArea())
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .background(
             NavigationLink(
                 destination: SettingsView(),
@@ -102,6 +115,9 @@ struct HomeView: View {
             )
             .hidden()
         )
+        .onAppear {
+            activityService.startListening()
+        }
     }
     
     private var toolbarCapsule: some View {
@@ -182,5 +198,6 @@ struct HomeView: View {
     NavigationView {
         HomeView()
             .environmentObject(LoginViewModel())
+            .environmentObject(ActivityService())
     }
 }

@@ -22,17 +22,23 @@ class ThreadService: ObservableObject {
         let threadId = Thread.threadId(between: currentUid, and: friendUid)
         let ref = db.collection(threadsCollection).document(threadId)
         let doc = try? await ref.getDocument()
-        if let doc = doc, doc.exists, let thread = try? doc.data(as: Thread.self) {
-            var t = thread
-            t.id = threadId
-            return t
+        if let doc, doc.exists {
+            if var thread = try? doc.data(as: Thread.self) {
+                thread.id = threadId
+                return thread
+            }
+            return Thread(
+                id: threadId,
+                participantIds: [currentUid, friendUid].sorted()
+            )
         }
         let newThread = Thread(
             id: threadId,
             participantIds: [currentUid, friendUid].sorted(),
             lastMessageText: nil,
             lastMessageAt: nil,
-            lastMessageBy: nil
+            lastMessageBy: nil,
+            lastReadAt: [currentUid: Date()]
         )
         var data = (try? Firestore.Encoder().encode(newThread)) ?? [:]
         data["participantIds"] = [currentUid, friendUid].sorted()
@@ -74,5 +80,77 @@ class ThreadService: ObservableObject {
             }
         }
         return { listener.remove() }
+    }
+    
+    /// Record that the current user has seen the latest messages in this thread.
+    func markThreadAsRead(threadId: String) async {
+        guard let currentUid = authService.currentUserId, !threadId.isEmpty else { return }
+        let now = Timestamp(date: Date())
+        do {
+            try await db.collection("users").document(currentUid).setData([
+                "threadLastReadAt.\(threadId)": now
+            ], merge: true)
+        } catch {
+            print("ThreadService persist user read error: \(error)")
+        }
+        do {
+            try await db.collection(threadsCollection).document(threadId).setData([
+                "lastReadAt.\(currentUid)": now
+            ], merge: true)
+        } catch {
+            print("ThreadService markThreadAsRead error: \(error)")
+        }
+    }
+    
+    /// Listen to all threads the current user is in. Call the returned cancel() to remove the listener.
+    func listenToThreads(onUpdate: @escaping ([Thread]) -> Void) -> () -> Void {
+        guard let currentUid = authService.currentUserId else {
+            onUpdate([])
+            return {}
+        }
+        let query = db.collection(threadsCollection)
+            .whereField("participantIds", arrayContains: currentUid)
+        let listener = query.addSnapshotListener { snapshot, error in
+            guard let snapshot = snapshot, error == nil else {
+                print("ThreadService listenToThreads error: \(error?.localizedDescription ?? "unknown")")
+                return
+            }
+            let threads = snapshot.documents.compactMap { Self.decodeThread(from: $0) }
+            Task { @MainActor in
+                onUpdate(threads)
+            }
+        }
+        return { listener.remove() }
+    }
+    
+    /// Codable can drop a thread if `lastReadAt` is a Timestamp map; parse those fields by hand.
+    private static func decodeThread(from doc: QueryDocumentSnapshot) -> Thread? {
+        if var thread = try? doc.data(as: Thread.self) {
+            thread.id = doc.documentID
+            return thread
+        }
+        let data = doc.data()
+        guard let participantIds = data["participantIds"] as? [String] else {
+            print("ThreadService skipped \(doc.documentID): missing participantIds")
+            return nil
+        }
+        var lastReadAt: [String: Date] = [:]
+        if let raw = data["lastReadAt"] as? [String: Any] {
+            for (key, value) in raw {
+                if let timestamp = value as? Timestamp {
+                    lastReadAt[key] = timestamp.dateValue()
+                } else if let date = value as? Date {
+                    lastReadAt[key] = date
+                }
+            }
+        }
+        return Thread(
+            id: doc.documentID,
+            participantIds: participantIds,
+            lastMessageText: data["lastMessageText"] as? String,
+            lastMessageAt: (data["lastMessageAt"] as? Timestamp)?.dateValue(),
+            lastMessageBy: data["lastMessageBy"] as? String,
+            lastReadAt: lastReadAt.isEmpty ? nil : lastReadAt
+        )
     }
 }

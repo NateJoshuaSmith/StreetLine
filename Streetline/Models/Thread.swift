@@ -14,13 +14,34 @@ struct Thread: Identifiable, Codable {
     var lastMessageText: String?
     var lastMessageAt: Date?
     var lastMessageBy: String?
+    /// Per-user last time they opened this thread (`uid` → date).
+    var lastReadAt: [String: Date]?
     
-    init(id: String? = nil, participantIds: [String], lastMessageText: String? = nil, lastMessageAt: Date? = nil, lastMessageBy: String? = nil) {
+    init(
+        id: String? = nil,
+        participantIds: [String],
+        lastMessageText: String? = nil,
+        lastMessageAt: Date? = nil,
+        lastMessageBy: String? = nil,
+        lastReadAt: [String: Date]? = nil
+    ) {
         self.id = id
         self.participantIds = participantIds
         self.lastMessageText = lastMessageText
         self.lastMessageAt = lastMessageAt
         self.lastMessageBy = lastMessageBy
+        self.lastReadAt = lastReadAt
+    }
+    
+    /// Unread only when someone else sent the latest message and we have not opened it since.
+    func hasUnreadMessages(for userId: String) -> Bool {
+        guard let lastMessageBy, lastMessageBy != userId, let lastMessageAt else {
+            return false
+        }
+        guard let lastRead = lastReadAt?[userId] else {
+            return true
+        }
+        return lastMessageAt > lastRead
     }
     
     /// Stable thread ID for two participants (sorted UIDs joined).

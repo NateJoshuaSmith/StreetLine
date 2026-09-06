@@ -21,6 +21,7 @@ struct SpotFinderApp: App {
     // register app delegate for Firebase setup
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var viewModel = LoginViewModel()
+    @StateObject private var activityService = ActivityService()
     
     var body: some Scene {
         WindowGroup {
@@ -38,6 +39,24 @@ struct SpotFinderApp: App {
             .navigationViewStyle(.stack)
             .background(Color.black.ignoresSafeArea())
             .environmentObject(viewModel)
+            .environmentObject(activityService)
+            .onChange(of: viewModel.isLoggedIn) { _, isLoggedIn in
+                if isLoggedIn, !viewModel.needsUsernameSetup {
+                    activityService.startListening()
+                } else {
+                    activityService.stopListening()
+                }
+            }
+            .onChange(of: viewModel.needsUsernameSetup) { _, needsUsername in
+                if viewModel.isLoggedIn, !needsUsername {
+                    activityService.startListening()
+                }
+            }
+            .onAppear {
+                if viewModel.isLoggedIn, !viewModel.needsUsernameSetup {
+                    activityService.startListening()
+                }
+            }
         }
     }
 }

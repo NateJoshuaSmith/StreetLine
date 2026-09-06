@@ -11,6 +11,7 @@ import FirebaseAuth
 struct ConversationView: View {
     let friendProfile: UserProfile
     
+    @EnvironmentObject var activityService: ActivityService
     @StateObject private var threadService = ThreadService()
     @State private var messages: [Message] = []
     @State private var inputText = ""
@@ -72,6 +73,7 @@ struct ConversationView: View {
         .navigationTitle(friendProfile.username)
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            activityService.markConversationOpened(withFriendUid: friendProfile.uid)
             await setupThread()
         }
         .onDisappear {
@@ -87,6 +89,7 @@ struct ConversationView: View {
                 threadId = tid
                 isReady = true
             }
+            await threadService.markThreadAsRead(threadId: tid)
             let cancel = threadService.listenToMessages(threadId: tid) { newMessages in
                 messages = newMessages
             }
@@ -187,5 +190,6 @@ private struct MessageBubble: View {
 #Preview {
     NavigationStack {
         ConversationView(friendProfile: UserProfile(uid: "preview", username: "friend", email: nil, avatarURL: nil))
+            .environmentObject(ActivityService())
     }
 }

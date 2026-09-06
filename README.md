@@ -11,7 +11,7 @@ Built with SwiftUI, MapKit, and Firebase.
 - Add spots with photos, tags, difficulty, and fun level
 - Spot details: ratings, comments, photos, directions, and reports
 - Favorites list
-- Friends, friend requests, and 1:1 chat
+- Friends, friend requests, and 1:1 chat, with unread badges on Home and the map
 - Community posts for finding people to skate with
 - Nearby skate shops and skate parks
 - Settings, username/avatar edits, and contact support
@@ -34,7 +34,7 @@ Your username is what other people see on spots, comments, posts, and profiles.
 
 Home is the hub after you log in. The top bar has:
 
-- **Friends** — your friends list, incoming requests, and pending outgoing requests
+- **Friends** — your friends list, incoming requests, and pending outgoing requests. A red badge appears when you have unread chats or incoming friend requests.
 - **Wrench menu** — Settings or Logout
 
 Three tiles open the main areas of the app:
@@ -106,7 +106,7 @@ Favorites are stored on your user profile in Firestore, not only on the device.
 Open **Friends** from Home or the map.
 
 - **Requests** — accept or decline incoming friend requests.
-- **Friends** — tap a friend to open their profile, or remove them. You can also start a chat from their profile.
+- **Friends** — tap a friend to open their profile, or remove them. You can also start a chat from their profile. Unread chats show a **New** tag and a red dot on the message icon. Opening the conversation marks it as read.
 - **Pending** — outgoing requests you have sent.
 - **Add friend** — search by username prefix and send a request.
 
