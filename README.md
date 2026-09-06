@@ -1,6 +1,6 @@
-# SpotFinder 
+# Streetline
 
-A skate spot finder iOS app built with SwiftUI and Firebase.
+Streetline is a skate spot finder iOS app built with SwiftUI and Firebase.
 
 ## Features
 
