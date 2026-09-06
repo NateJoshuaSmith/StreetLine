@@ -211,6 +211,17 @@ class UserService: ObservableObject {
         try await updateDenormalizedUsername(uid: uid, newUsername: trimmed)
     }
     
+    /// Update the email stored on the current user's profile document.
+    func updateEmail(_ newEmail: String) async throws {
+        guard let uid = authService.currentUserId else {
+            throw NSError(domain: "UserService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
+        }
+        let trimmed = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        try await db.collection(collectionName).document(uid).setData([
+            "email": trimmed
+        ], merge: true)
+    }
+    
     /// Update createdByUsername on all spots owned by this user so "by @username" stays correct.
     private func updateDenormalizedUsername(uid: String, newUsername: String) async throws {
         let spotsSnapshot = try await db.collection(spotsCollectionName)

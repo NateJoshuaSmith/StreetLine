@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var isUploadingAvatar = false
     @State private var showContactSupport = false
     @State private var showChangeUsername = false
+    @State private var showChangeEmail = false
     
     var body: some View {
         ZStack {
@@ -85,6 +86,18 @@ struct SettingsView: View {
                 }
             )
         }
+        .sheet(isPresented: $showChangeEmail) {
+            ChangeEmailView(
+                currentEmail: userEmail,
+                userService: userService,
+                onDismiss: {
+                    showChangeEmail = false
+                    if let email = Auth.auth().currentUser?.email {
+                        userEmail = email
+                    }
+                }
+            )
+        }
     }
     
     private var settingsCard: some View {
@@ -120,6 +133,15 @@ struct SettingsView: View {
                 settingsRow(
                     title: "Change username",
                     systemImage: "at.circle.fill",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
+            
+            Button(action: { showChangeEmail = true }) {
+                settingsRow(
+                    title: "Change email",
+                    systemImage: "envelope.badge.fill",
                     showsChevron: true
                 )
             }
@@ -396,6 +418,125 @@ struct ChangeUsernameView: View {
         defer { isSaving = false }
         do {
             try await userService.updateUsername(trimmed)
+            showSuccess = true
+        } catch {
+            errorMessage = (error as NSError).localizedDescription
+        }
+    }
+}
+
+// MARK: - Change Email
+struct ChangeEmailView: View {
+    let currentEmail: String
+    @ObservedObject var userService: UserService
+    var onDismiss: () -> Void
+    
+    @State private var newEmail: String = ""
+    @State private var confirmEmail: String = ""
+    @State private var currentPassword: String = ""
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @State private var successMessage: String?
+    @State private var showSuccess = false
+    @Environment(\.dismiss) var dismiss
+    
+    private let authService = AuthService()
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text(currentEmail)
+                        .foregroundColor(.secondary)
+                } header: {
+                    Text("Current email")
+                }
+                
+                Section {
+                    TextField("New email", text: $newEmail)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.emailAddress)
+                        .autocorrectionDisabled()
+                        .textContentType(.emailAddress)
+                        .disabled(isSaving)
+                    TextField("Confirm new email", text: $confirmEmail)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.emailAddress)
+                        .autocorrectionDisabled()
+                        .textContentType(.emailAddress)
+                        .disabled(isSaving)
+                    SecureField("Current password", text: $currentPassword)
+                        .textContentType(.password)
+                        .disabled(isSaving)
+                } header: {
+                    Text("New email")
+                } footer: {
+                    Text("Enter your current password to confirm this change.")
+                }
+                
+                if let error = errorMessage {
+                    Section {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.subheadline)
+                    }
+                }
+            }
+            .navigationTitle("Change email")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                        onDismiss()
+                    }
+                    .disabled(isSaving)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task { await saveEmail() }
+                    }
+                    .disabled(isSaving || !isFormValid)
+                }
+            }
+            .alert("Email updated", isPresented: $showSuccess) {
+                Button("OK") {
+                    dismiss()
+                    onDismiss()
+                }
+            } message: {
+                Text(successMessage ?? "Your email has been updated.")
+            }
+        }
+    }
+    
+    private var isFormValid: Bool {
+        let email = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let confirm = confirmEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !email.isEmpty && !confirm.isEmpty && !currentPassword.isEmpty
+    }
+    
+    private func saveEmail() async {
+        let trimmed = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let confirm = confirmEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.lowercased() == confirm.lowercased() else {
+            errorMessage = "New email addresses do not match"
+            return
+        }
+        errorMessage = nil
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            let changedImmediately = try await authService.updateEmail(
+                to: trimmed,
+                currentPassword: currentPassword
+            )
+            if changedImmediately {
+                try await userService.updateEmail(trimmed)
+                successMessage = "Your email is now \(trimmed)."
+            } else {
+                successMessage = "Check \(trimmed) and tap the verification link. Your login email updates after you verify."
+            }
             showSuccess = true
         } catch {
             errorMessage = (error as NSError).localizedDescription
