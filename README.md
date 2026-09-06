@@ -23,8 +23,8 @@ A skate spot finder iOS app built with SwiftUI and Firebase.
 ## Project Structure
 
 ```
-SpotFinder/
-├── SpotFinder/
+Streetline/
+├── Streetline/
 │   ├── SpotFinderApp.swift      # App entry point
 │   ├── ContentView.swift        # Main content view
 │   ├── Login.swift              # Login screen

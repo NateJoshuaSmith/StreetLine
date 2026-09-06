@@ -227,9 +227,29 @@ struct SpotDetailView: View {
                             Spacer(minLength: 0)
                             
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(spot.name)
-                                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                                    .foregroundColor(.primary)
+                                HStack(alignment: .top, spacing: 12) {
+                                    Text(spot.name)
+                                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                                        .foregroundColor(.primary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    
+                                    if Auth.auth().currentUser != nil, let spotId = spot.id {
+                                        Button(action: { Task { await toggleFavorite() } }) {
+                                            if isTogglingFavorite {
+                                                ProgressView()
+                                                    .frame(width: 36, height: 36)
+                                            } else {
+                                                Image(systemName: userService.isFavorite(spotId: spotId) ? "heart.fill" : "heart")
+                                                    .font(.system(size: 28, weight: .semibold))
+                                                    .foregroundColor(userService.isFavorite(spotId: spotId) ? .red : .secondary)
+                                                    .frame(width: 36, height: 36)
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(isTogglingFavorite)
+                                        .accessibilityLabel(userService.isFavorite(spotId: spotId) ? "Remove from favorites" : "Add to favorites")
+                                    }
+                                }
                                 
                                 // Difficulty / status badges
                                 HStack(spacing: 8) {

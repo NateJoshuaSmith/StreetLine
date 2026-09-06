@@ -35,6 +35,8 @@ struct SpotFinderApp: App {
                     Login()
                 }
             }
+            .navigationViewStyle(.stack)
+            .background(Color.black.ignoresSafeArea())
             .environmentObject(viewModel)
         }
     }

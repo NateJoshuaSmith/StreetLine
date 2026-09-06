@@ -19,7 +19,7 @@ struct CommunityForumView: View {
     
     var body: some View {
         ZStack {
-            Image("OutdoorPark")
+            Image("PostsBackground")
                 .resizable()
                 .scaledToFill()
                 .ignoresSafeArea()

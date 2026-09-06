@@ -21,14 +21,14 @@ struct AddSpotView: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedImageData: Data?
     
-    // Tag / difficulty / status options
-    private let allTags = ["Street", "Park", "DIY", "Ledge", "Rail", "Hubba", "Bowl"]
+    // Tag / difficulty / fun level options
+    private let allTags = ["Street", "Park", "DIY", "Ledge", "Rail", "Hubba", "Bowl", "Red Curb"]
     private let allDifficulties = ["Beginner", "Intermediate", "Advanced"]
-    private let allStatuses = ["Good", "Sketchy", "Busted", "Under construction"]
+    private let allFunLevels = ["Not fun but skateable", "Fun", "Super Fun"]
     
     @State private var selectedTags: Set<String> = []
     @State private var selectedDifficulty: String = "Beginner"
-    @State private var selectedStatus: String = "Good"
+    @State private var selectedStatus: String = "Fun"
     
     var body: some View {
         NavigationView {
@@ -138,14 +138,25 @@ struct AddSpotView: View {
                         
                         bubbleCard {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Skateable status")
+                                Text("Level of fun")
                                     .font(.headline)
-                                Picker("Status", selection: $selectedStatus) {
-                                    ForEach(allStatuses, id: \.self) { s in
-                                        Text(s).tag(s)
+                                HStack(spacing: 8) {
+                                    ForEach(allFunLevels, id: \.self) { level in
+                                        let isOn = selectedStatus == level
+                                        Text(level)
+                                            .font(.subheadline)
+                                            .multilineTextAlignment(.center)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 8)
+                                            .frame(maxWidth: .infinity)
+                                            .background(isOn ? Color.blue.opacity(0.2) : Color(.systemGray6))
+                                            .foregroundColor(isOn ? .blue : .primary)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            .onTapGesture {
+                                                selectedStatus = level
+                                            }
                                     }
                                 }
-                                .pickerStyle(.segmented)
                             }
                         }
                         

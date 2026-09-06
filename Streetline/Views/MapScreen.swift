@@ -7,6 +7,7 @@ import FirebaseAuth
 struct MapScreen: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var spotService = SpotService()
+    @StateObject private var userService = UserService()
     @StateObject private var locationManager = LocationManager()
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -33,15 +34,16 @@ struct MapScreen: View {
     @State private var isLoadingSpots = true
     /// After finishing a drag, ignore pin taps briefly so the callout doesn’t open from touch-up.
     @State private var suppressPinTapUntil: Date = .distantPast
+    @State private var isTogglingCalloutFavorite = false
     
     // Filters
     @State private var selectedTagFilter: String? = nil
     @State private var selectedDifficultyFilter: String? = nil
     @State private var selectedStatusFilter: String? = nil
     
-    private let allTags = ["Street", "Park", "DIY", "Ledge", "Rail", "Hubba", "Bowl"]
+    private let allTags = ["Street", "Park", "DIY", "Ledge", "Rail", "Hubba", "Bowl", "Red Curb"]
     private let allDifficulties = ["Beginner", "Intermediate", "Advanced"]
-    private let allStatuses = ["Good", "Sketchy", "Busted", "Under construction"]
+    private let allFunLevels = ["Not fun but skateable", "Fun", "Super Fun"]
     
     private var filteredSpots: [SkateSpot] {
         spotService.spots.filter { spot in
@@ -52,8 +54,8 @@ struct MapScreen: View {
             if let diff = selectedDifficultyFilter {
                 if spot.difficulty != diff { return false }
             }
-            if let status = selectedStatusFilter {
-                if spot.status != status { return false }
+            if let funLevel = selectedStatusFilter {
+                if spot.status != funLevel { return false }
             }
             return true
         }
@@ -408,7 +410,7 @@ struct MapScreen: View {
                 }
                 
                 if let status = spot.status, !status.isEmpty {
-                    Label(status, systemImage: "flag.fill")
+                    Label(status, systemImage: "face.smiling")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -428,6 +430,26 @@ struct MapScreen: View {
                 .font(.caption.weight(.semibold))
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                
+                if Auth.auth().currentUser != nil, let spotId = spot.id {
+                    Button {
+                        Task { await toggleCalloutFavorite(spotId: spotId) }
+                    } label: {
+                        if isTogglingCalloutFavorite {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                                .frame(width: 28, height: 28)
+                        } else {
+                            Image(systemName: userService.isFavorite(spotId: spotId) ? "heart.fill" : "heart")
+                                .font(.body.weight(.semibold))
+                                .foregroundColor(userService.isFavorite(spotId: spotId) ? .red : .secondary)
+                                .frame(width: 28, height: 28)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isTogglingCalloutFavorite)
+                    .accessibilityLabel(userService.isFavorite(spotId: spotId) ? "Remove from favorites" : "Add to favorites")
+                }
             }
             .padding(.top, 2)
         }
@@ -478,41 +500,13 @@ struct MapScreen: View {
             HStack {
                 Spacer()
                 ZStack {
-                    // Outer glow
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.blue.opacity(0.3), .purple.opacity(0.2)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 60, height: 60)
-                        .blur(radius: 4)
-                    
-                    // Outer ring
-                    Circle()
-                        .stroke(
-                            LinearGradient(
-                                colors: [.blue, .purple],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 3
-                        )
+                        .stroke(Color.black, lineWidth: 3)
                         .frame(width: 50, height: 50)
                     
-                    // Inner dot
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.blue, .purple],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(Color.black)
                         .frame(width: 10, height: 10)
-                        .shadow(color: .blue.opacity(0.5), radius: 4, x: 0, y: 2)
                 }
                 Spacer()
             }
@@ -543,9 +537,7 @@ struct MapScreen: View {
             }
         }
         .mapStyle(.standard(elevation: .realistic))
-        .mapControls {
-            MapCompass()
-        }
+        .mapControlVisibility(.hidden)
         .onMapCameraChange(frequency: .continuous) { context in
             let newRegion = context.region
             mapRegion = newRegion
@@ -594,96 +586,58 @@ struct MapScreen: View {
             
             centerIndicator
             
-            // Filter bar – centered close under the nav bar
-            VStack {
-                HStack {
-                    Spacer()
-                    filterBarCompact
-                    Spacer()
-                }
-                .padding(.top, 36)
-                Spacer()
-            }
-            .zIndex(90)
-            
-            // Re-center button (blue arrow-style) aligned with filter bar
-            VStack {
-                HStack {
-                    Spacer()
-                    Button(action: {
-                        if let userLocation = locationManager.location {
-                            let coord = userLocation.coordinate
-                            // Make sure coordinates are valid before centering
-                            if coord.latitude >= -90, coord.latitude <= 90,
-                               coord.longitude >= -180, coord.longitude <= 180,
-                               coord.latitude != 0 || coord.longitude != 0 {
-                                cameraPosition = .region(
-                                    MKCoordinateRegion(
-                                        center: coord,
-                                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                                    )
-                                )
-                                hasCenteredOnUserLocation = true
-                            }
-                        }
-                    }) {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(10)
-                            .background(
-                                Circle().fill(Color.blue)
-                            )
+            VStack(spacing: 10) {
+                HStack(alignment: .top, spacing: 8) {
+                    Button(action: { dismiss() }) {
+                        mapToolbarIcon("chevron.left")
                     }
-                    .padding(.trailing, 12)
+                    
+                    filterBarCompact
+                    
+                    Button(action: {
+                        if let region = mapRegion {
+                            selectedLatitude = region.center.latitude
+                            selectedLongitude = region.center.longitude
+                        }
+                        showAddSpotSheet = true
+                    }) {
+                        mapToolbarIcon("plus")
+                    }
                 }
-                .padding(.top, 36)
+                .padding(.horizontal, 12)
+                
+                HStack(spacing: 6) {
+                    NavigationLink(destination: FriendsListView()) {
+                        mapToolbarIcon("person.2.fill")
+                    }
+                    
+                    Button(action: { showSkateShopsSheet = true }) {
+                        mapToolbarIcon("storefront.fill")
+                    }
+                    
+                    Button(action: { showSkateParksSheet = true }) {
+                        mapToolbarIcon("figure.skateboarding")
+                    }
+                    
+                    NavigationLink(destination: FavoritesListView()) {
+                        mapToolbarIcon("heart.fill", color: .pink)
+                    }
+                }
+                
                 Spacer()
             }
-            .zIndex(95)
+            .padding(.top, 4)
+            .zIndex(90)
             
         }
     }
     
-    private var bottomLogoOverlay: some View {
-        Image("SpotfinderLogo")
-            .resizable()
-            .scaledToFit()
-            .frame(height: 72)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(
-                Capsule()
-                    .fill(Color.black)
-                    .overlay(
-                        Capsule()
-                            .stroke(
-                                LinearGradient(
-                                    colors: [.blue.opacity(0.8), .purple.opacity(0.8)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ),
-                                lineWidth: 4
-                            )
-                    )
-            )
-            .padding(.bottom, 16)
-            .allowsHitTesting(false)
-    }
-    
-    // Shrunk filter bar with centered home icon above tags
-    @ViewBuilder
     private var filterBarCompact: some View {
         VStack(spacing: 4) {
-            // Home icon centered above the filters
-            Button(action: { dismiss() }) {
-                Image(systemName: "house.fill")
-                    .foregroundColor(.primary)
-                    .padding(6)
-                    .background(
-                        Circle().fill(Color(.systemGray5))
-                    )
-            }
+            Text("FILTER")
+                .font(.caption.weight(.heavy))
+                .tracking(0.8)
+                .foregroundColor(.primary)
             
             HStack(spacing: 6) {
                 Menu {
@@ -727,12 +681,12 @@ struct MapScreen: View {
                         .overlay(Capsule().stroke(Color.black, lineWidth: 1.5))
                 }
                 Menu {
-                    Button("Any status") { selectedStatusFilter = nil }
-                    ForEach(allStatuses, id: \.self) { s in
-                        Button(s) { selectedStatusFilter = s }
+                    Button("Any fun") { selectedStatusFilter = nil }
+                    ForEach(allFunLevels, id: \.self) { level in
+                        Button(level) { selectedStatusFilter = level }
                     }
                 } label: {
-                    Label(selectedStatusFilter ?? "Status", systemImage: "flag")
+                    Label(selectedStatusFilter ?? "Fun", systemImage: "face.smiling")
                         .font(.caption2.weight(.medium))
                         .foregroundColor(selectedStatusFilter == nil ? .primary : .green)
                         .padding(.horizontal, 8)
@@ -769,54 +723,41 @@ struct MapScreen: View {
         )
     }
     
-    // Toolbar content
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        // Back button, Friends, and Skate shops on the leading side
-        ToolbarItemGroup(placement: .navigationBarLeading) {
-            Button(action: { dismiss() }) {
-                Image(systemName: "chevron.left")
-            }
-            
-            NavigationLink(destination: FriendsListView()) {
-                Image(systemName: "person.2.fill")
-            }
-            
-            Button(action: { showSkateShopsSheet = true }) {
-                Image(systemName: "storefront.fill")
-            }
-            
-            Button(action: { showSkateParksSheet = true }) {
-                Image(systemName: "figure.skateboarding")
-            }
+    private func mapToolbarIcon(_ systemName: String, color: Color = .primary) -> some View {
+        Image(systemName: systemName)
+            .font(.caption.weight(.semibold))
+            .foregroundColor(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(toolbarCapsule)
+            .padding(2)
+    }
+    
+    private var toolbarCapsule: some View {
+        ZStack {
+            Capsule().fill(Color.white.opacity(0.92))
+            Capsule().strokeBorder(Color.black, lineWidth: 2.5)
         }
-        // Favorites and plus buttons (no outlines, gray circles)
-        ToolbarItem(placement: .navigationBarTrailing) {
-            HStack(spacing: 10) {
-                NavigationLink(destination: FavoritesListView()) {
-                    Image(systemName: "heart.fill")
-                        .foregroundColor(.pink)
-                        .padding(8)
-                }
-                
-                Button(action: {
-                    if let region = mapRegion {
-                        selectedLatitude = region.center.latitude
-                        selectedLongitude = region.center.longitude
-                    }
-                    showAddSpotSheet = true
-                }) {
-                    Image(systemName: "plus")
-                        .foregroundColor(.primary)
-                        .padding(8)
-                }
+    }
+    
+    private func toggleCalloutFavorite(spotId: String) async {
+        isTogglingCalloutFavorite = true
+        defer { isTogglingCalloutFavorite = false }
+        do {
+            if userService.isFavorite(spotId: spotId) {
+                try await userService.removeFavorite(spotId: spotId)
+            } else {
+                try await userService.addFavorite(spotId: spotId)
             }
+        } catch {
+            print("Error updating favorite: \(error)")
         }
     }
     
     // Setup task logic
     private func setupTask() {
         spotService.listenToSpots()
+        Task { await userService.loadFavorites() }
         if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
             locationManager.startLocationUpdates()
             if let userLocation = locationManager.location, !hasCenteredOnUserLocation {
@@ -867,13 +808,8 @@ struct MapScreen: View {
         GeometryReader { geometry in
             mapContent(geometry: geometry)
         }
-        .overlay(alignment: .bottom) {
-            bottomLogoOverlay
-        }
         .navigationBarBackButtonHidden(true)
-        .toolbar {
-            toolbarContent
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showAddSpotSheet) {
             AddSpotView(
                 spotService: spotService,
@@ -883,6 +819,9 @@ struct MapScreen: View {
         }
         .sheet(item: $selectedSpot) { spot in
             SpotDetailView(spot: spot, spotService: spotService)
+                .onDisappear {
+                    Task { await userService.loadFavorites() }
+                }
         }
         .sheet(isPresented: $showSkateShopsSheet) {
             NearbySkateShopsView(

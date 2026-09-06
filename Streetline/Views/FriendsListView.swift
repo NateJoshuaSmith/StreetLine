@@ -27,7 +27,7 @@ struct FriendsListView: View {
     var body: some View {
         ZStack {
             // Friends list background image with dark overlay, similar to Home
-            Image("FriendslistBackground")
+            Image("FriendsBackground")
                 .resizable()
                 .scaledToFill()
                 .ignoresSafeArea()
@@ -181,7 +181,7 @@ struct FriendsListView: View {
                             }
                         }
                     }
-                    .scrollContentBackground(.hidden) // let the FriendslistBackground show through
+                    .scrollContentBackground(.hidden) // let the FriendsBackground show through
                 }
             }
         }

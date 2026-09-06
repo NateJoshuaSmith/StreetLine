@@ -21,13 +21,13 @@ struct FavoritesListView: View {
     
     var body: some View {
         ZStack {
-            // Friend-style background with dark overlay for favorites
-            Image("FriendBackground")
+            // Favorites background image with dark overlay
+            Image("FavoritesBackground")
                 .resizable()
                 .scaledToFill()
                 .ignoresSafeArea()
             
-            Color.black.opacity(0.45)
+            Color.black.opacity(0.28)
                 .ignoresSafeArea()
             
             Group {

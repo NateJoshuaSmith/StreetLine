@@ -18,7 +18,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		D8E7D5E02F62133800D7477F /* Exceptions for "SpotFinder" folder in "SpotFinder" target */ = {
+		D8E7D5E02F62133800D7477F /* Exceptions for "Streetline" folder in "SpotFinder" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -28,12 +28,12 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		D885D4AC2ECF0C5800683727 /* SpotFinder */ = {
+		D885D4AC2ECF0C5800683727 /* Streetline */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				D8E7D5E02F62133800D7477F /* Exceptions for "SpotFinder" folder in "SpotFinder" target */,
+				D8E7D5E02F62133800D7477F /* Exceptions for "Streetline" folder in "SpotFinder" target */,
 			);
-			path = SpotFinder;
+			path = Streetline;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -56,7 +56,7 @@
 		D885D4A12ECF0C5800683727 = {
 			isa = PBXGroup;
 			children = (
-				D885D4AC2ECF0C5800683727 /* SpotFinder */,
+				D885D4AC2ECF0C5800683727 /* Streetline */,
 				D885D4AB2ECF0C5800683727 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -85,7 +85,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				D885D4AC2ECF0C5800683727 /* SpotFinder */,
+				D885D4AC2ECF0C5800683727 /* Streetline */,
 			);
 			name = SpotFinder;
 			packageProductDependencies = (
@@ -284,7 +284,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = SpotFinder/Info.plist;
+				INFOPLIST_FILE = Streetline/Info.plist;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SpotFinder needs your location to show nearby skate spots and help you discover new places to skate.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -317,7 +317,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = SpotFinder/Info.plist;
+				INFOPLIST_FILE = Streetline/Info.plist;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SpotFinder needs your location to show nearby skate spots and help you discover new places to skate.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
