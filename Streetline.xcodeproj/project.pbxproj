@@ -290,7 +290,7 @@
 				INFOPLIST_FILE = Streetline/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Streetline;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Streetline needs your location to show nearby skate spots and help you discover new places to skate.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Streetline uses your photo library so you can add photos to skate spots and set a profile picture.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Streetline uses your photo library so you can add photos and trick clips to skate spots and set a profile picture.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -326,7 +326,7 @@
 				INFOPLIST_FILE = Streetline/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Streetline;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Streetline needs your location to show nearby skate spots and help you discover new places to skate.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Streetline uses your photo library so you can add photos to skate spots and set a profile picture.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Streetline uses your photo library so you can add photos and trick clips to skate spots and set a profile picture.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

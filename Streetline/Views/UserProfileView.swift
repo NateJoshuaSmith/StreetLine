@@ -22,6 +22,9 @@ struct UserProfileView: View {
     @State private var profileLoadError: String?
     @State private var isSendingRequest = false
     @State private var requestError: String?
+    @State private var showReportUser = false
+    @State private var showBlockConfirm = false
+    @State private var safetyError: String?
     
     private var displayProfile: UserProfile {
         loadedProfile ?? profile
@@ -33,6 +36,10 @@ struct UserProfileView: View {
     
     private var isFriend: Bool {
         userService.isFriend(uid: displayProfile.uid)
+    }
+    
+    private var isBlocked: Bool {
+        userService.isBlocked(uid: displayProfile.uid)
     }
     
     private var hasPendingSent: Bool {
@@ -91,60 +98,93 @@ struct UserProfileView: View {
 
                 if !isCurrentUser {
                     VStack(spacing: 12) {
-                        NavigationLink(destination: ConversationView(friendProfile: displayProfile)) {
-                            Label("Message", systemImage: "bubble.left.and.bubble.right.fill")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(Color.blue)
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
+                        if isBlocked {
+                            Text("You blocked this user. Their posts, comments, and messages are hidden.")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        } else {
+                            NavigationLink(destination: ConversationView(friendProfile: displayProfile)) {
+                                Label("Message", systemImage: "bubble.left.and.bubble.right.fill")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Button {
+                                Task { await sendFriendRequest() }
+                            } label: {
+                                if isFriend {
+                                    Label("Already friends", systemImage: "checkmark.circle.fill")
+                                } else if hasPendingSent {
+                                    Label("Request sent", systemImage: "clock.fill")
+                                } else if isSendingRequest {
+                                    ProgressView()
+                                        .tint(.white)
+                                } else {
+                                    Label("Add friend", systemImage: "person.badge.plus")
+                                }
+                            }
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                (isFriend || hasPendingSent || isSendingRequest) ? Color.gray : Color.green
+                            )
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                            .disabled(isFriend || hasPendingSent || isSendingRequest)
                         }
-                        .buttonStyle(.plain)
                         
                         Button {
-                            Task { await sendFriendRequest() }
+                            showReportUser = true
                         } label: {
-                            if isFriend {
-                                Label("Already friends", systemImage: "checkmark.circle.fill")
-                            } else if hasPendingSent {
-                                Label("Request sent", systemImage: "clock.fill")
-                            } else if isSendingRequest {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Label("Add friend", systemImage: "person.badge.plus")
-                            }
+                            Label("Report", systemImage: "flag")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
                         }
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            (isFriend || hasPendingSent || isSendingRequest) ? Color.gray : Color.green
-                        )
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                        .disabled(isFriend || hasPendingSent || isSendingRequest)
+                        .buttonStyle(.bordered)
                         
-                        if let error = requestError {
+                        Button(role: .destructive) {
+                            if isBlocked {
+                                Task { await unblockUser() }
+                            } else {
+                                showBlockConfirm = true
+                            }
+                        } label: {
+                            Label(isBlocked ? "Unblock" : "Block", systemImage: isBlocked ? "hand.raised.slash" : "hand.raised")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        }
+                        
+                        if let error = requestError ?? safetyError {
                             Text(error)
                                 .font(.footnote)
                                 .foregroundColor(.red)
                         }
                         
-                        Text("You can start a conversation or manage friendship from the Friends screen.")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
+                        if !isBlocked {
+                            Text("You can start a conversation or manage friendship from the Friends screen.")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
                     }
                     .padding(.horizontal)
                 }
 
                 VStack(spacing: 12) {
-                    contentHeader(title: "Community Posts (\(userCommunityPosts.count))")
+                    contentHeader(title: "Skate With (\(userCommunityPosts.count))")
                     if userCommunityPosts.isEmpty {
-                        emptyBubble(text: "No community posts yet.")
+                        emptyBubble(text: "No sessions yet.")
                     } else {
                         ForEach(userCommunityPosts.prefix(8), id: \.id) { post in
                             communityPostRow(post)
@@ -181,7 +221,31 @@ struct UserProfileView: View {
         .task {
             await userService.loadFriends()
             await userService.loadPendingSent()
+            await userService.loadBlockedUsers()
             await loadProfileContent()
+        }
+        .sheet(isPresented: $showReportUser) {
+            ReportContentView(
+                title: "Report User",
+                prompt: "Why are you reporting this account?",
+                type: .user,
+                targetId: displayProfile.uid,
+                targetPreview: displayProfile.username,
+                reportedUserId: displayProfile.uid,
+                onDismiss: { showReportUser = false }
+            )
+        }
+        .confirmationDialog(
+            "Block @\(displayProfile.username)?",
+            isPresented: $showBlockConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Block", role: .destructive) {
+                Task { await blockUser() }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("They won't be able to message you, and you won't see their posts or comments.")
         }
     }
     
@@ -235,30 +299,45 @@ struct UserProfileView: View {
     }
     
     private func emptyBubble(text: String) -> some View {
-        HStack {
+        HStack(spacing: 10) {
+            Image(systemName: "text.bubble")
+                .font(.body.weight(.bold))
+                .foregroundColor(.black)
             Text(text)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.black)
             Spacer()
         }
-        .padding(12)
+        .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.95))
-                .shadow(color: .black.opacity(0.12), radius: 5, x: 0, y: 2)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.black, lineWidth: 2)
         )
     }
     
     private func communityPostRow(_ post: CommunityPost) -> some View {
         NavigationLink(destination: CommunityPostDetailView(post: post)) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(post.text)
-                    .font(.subheadline)
+                Text(post.formattedWhen)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundColor(.primary)
-                    .lineLimit(3)
-                Text(post.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if let whereText = post.displayWhere {
+                    Text(whereText)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                if !post.text.isEmpty {
+                    Text(post.text)
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
@@ -345,6 +424,24 @@ extension UserProfileView {
         }
         await MainActor.run {
             isSendingRequest = false
+        }
+    }
+    
+    private func blockUser() async {
+        do {
+            try await userService.blockUser(displayProfile.uid)
+            await MainActor.run { safetyError = nil }
+        } catch {
+            await MainActor.run { safetyError = error.localizedDescription }
+        }
+    }
+    
+    private func unblockUser() async {
+        do {
+            try await userService.unblockUser(displayProfile.uid)
+            await MainActor.run { safetyError = nil }
+        } catch {
+            await MainActor.run { safetyError = error.localizedDescription }
         }
     }
 }

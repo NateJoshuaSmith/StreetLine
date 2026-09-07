@@ -40,25 +40,37 @@ struct FriendsListView: View {
             
             Group {
                 if !isLoggedIn {
-                    ContentUnavailableView(
-                        "Sign in to see friends",
+                    EmptyStateCard(
+                        title: "Sign in to see friends",
                         systemImage: "person.2.slash",
-                        description: Text("Log in to add and view your friends list.")
+                        message: "Log in to add and view your friends list."
                     )
                 } else if isLoading {
                     VStack(spacing: 16) {
                         ProgressView()
                             .scaleEffect(1.2)
+                            .tint(.black)
                         Text("Loading friends...")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.black)
                     }
+                    .padding(.vertical, 28)
+                    .padding(.horizontal, 32)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color.white)
+                            .shadow(color: .black.opacity(0.4), radius: 14, y: 8)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.black, lineWidth: 2.5)
+                    )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if !hasAnyContent {
-                    ContentUnavailableView(
-                        "No friends yet",
-                        systemImage: "person.2",
-                        description: Text("Tap \"Add friend\" to search by username and add people.")
+                    EmptyStateCard(
+                        title: "No friends yet",
+                        systemImage: "person.2.fill",
+                        message: "Tap Add friend to search by username and add people."
                     )
                 } else {
                     List {
@@ -303,16 +315,22 @@ struct FriendsListView: View {
         await userService.loadPendingSent()
         await userService.processAcceptedRequests()
         
-        let friendProfiles = (try? await userService.fetchProfiles(forUids: userService.friendIds)) ?? []
-        let pendingProfiles = (try? await userService.fetchProfiles(forUids: userService.pendingSentIds)) ?? []
+        await userService.loadBlockedUsers()
+        let friendProfiles = ((try? await userService.fetchProfiles(forUids: userService.friendIds)) ?? [])
+            .filter { !userService.isBlocked(uid: $0.uid) }
+        let pendingProfiles = ((try? await userService.fetchProfiles(forUids: userService.pendingSentIds)) ?? [])
+            .filter { !userService.isBlocked(uid: $0.uid) }
         
         let requests = (try? await userService.loadPendingReceived()) ?? []
         let fromUids = requests.map(\.fromUid)
         let senderProfiles = (try? await userService.fetchProfiles(forUids: fromUids)) ?? []
         let profileById = Dictionary(uniqueKeysWithValues: senderProfiles.map { ($0.uid, $0) })
         let receivedPairs: [(FriendRequest, UserProfile)] = requests.compactMap { request in
-            guard let profile = profileById[request.fromUid] else {
-                print("[FriendsListView] loadPendingReceived: missing profile for fromUid=\(request.fromUid)")
+            guard let profile = profileById[request.fromUid],
+                  !userService.isBlocked(uid: request.fromUid) else {
+                if profileById[request.fromUid] == nil {
+                    print("[FriendsListView] loadPendingReceived: missing profile for fromUid=\(request.fromUid)")
+                }
                 return nil
             }
             return (request, profile)

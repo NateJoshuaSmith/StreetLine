@@ -26,6 +26,7 @@ class LoginViewModel: ObservableObject {
         
         let hasProfile = await userService.hasProfile(uid: uid)
         let avatar = await userService.getCurrentAvatarURL()
+        await userService.loadBlockedUsers()
         await MainActor.run {
             needsUsernameSetup = !hasProfile
             avatarURL = avatar
@@ -47,6 +48,7 @@ class LoginViewModel: ObservableObject {
                 }
             }
             isLoggedIn = true
+            await userService.loadBlockedUsers()
             if let email = authService.currentUserEmail {
                 print("Logged in as: \(email)")
             }
@@ -89,6 +91,7 @@ class LoginViewModel: ObservableObject {
         do {
             try authService.signOut()
             UserService.clearFriendsListDisplayCache()
+            UserService.clearBlockedCache()
             print("Logout successful!")
             isLoggedIn = false
             avatarURL = nil
@@ -103,6 +106,7 @@ class LoginViewModel: ObservableObject {
         try await userService.deleteAllAccountData()
         try await authService.deleteCurrentUser()
         UserService.clearFriendsListDisplayCache()
+        UserService.clearBlockedCache()
         await MainActor.run {
             isLoggedIn = false
             needsUsernameSetup = false

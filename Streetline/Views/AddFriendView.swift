@@ -25,7 +25,7 @@ struct AddFriendView: View {
     /// Results to show: exclude self and already friends; mark just-added.
     private var displayResults: [UserProfile] {
         guard let uid = currentUid else { return [] }
-        return searchResults.filter { $0.uid != uid }
+        return searchResults.filter { $0.uid != uid && !userService.isBlocked(uid: $0.uid) }
     }
     
     var body: some View {
@@ -59,10 +59,10 @@ struct AddFriendView: View {
                     Spacer()
                 } else if displayResults.isEmpty && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Spacer()
-                    ContentUnavailableView(
-                        "No users found",
+                    EmptyStateCard(
+                        title: "No users found",
                         systemImage: "person.crop.circle.badge.questionmark",
-                        description: Text("Try a different username.")
+                        message: "Try a different username."
                     )
                     Spacer()
                 } else if displayResults.isEmpty {

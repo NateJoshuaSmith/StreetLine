@@ -36,6 +36,8 @@ struct MapScreen: View {
     /// After finishing a drag, ignore pin taps briefly so the callout doesn’t open from touch-up.
     @State private var suppressPinTapUntil: Date = .distantPast
     @State private var isTogglingCalloutFavorite = false
+    @State private var streetViewTarget: StreetViewTarget?
+    @State private var clipsSpot: SkateSpot?
     
     // Filters
     @State private var selectedTagFilter: String? = nil
@@ -417,6 +419,10 @@ struct MapScreen: View {
                 }
             }
             
+            CalloutClipsRow(spot: spot) {
+                clipsSpot = spot
+            }
+            
             HStack(spacing: 8) {
                 Button("Open") {
                     selectedSpot = spot
@@ -431,6 +437,20 @@ struct MapScreen: View {
                 .font(.caption.weight(.semibold))
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                
+                Button {
+                    streetViewTarget = StreetViewTarget(
+                        name: spot.name,
+                        latitude: spot.latitude,
+                        longitude: spot.longitude
+                    )
+                } label: {
+                    Image(systemName: "binoculars.fill")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Street view")
                 
                 if Auth.auth().currentUser != nil, let spotId = spot.id {
                     Button {
@@ -483,7 +503,7 @@ struct MapScreen: View {
                 let minX: CGFloat = halfWidth + 12
                 let maxX: CGFloat = geometry.size.width - halfWidth - 12
                 let x = min(max(point.x, minX), maxX)
-                let y = max(90, point.y - 130)
+                let y = max(110, point.y - 185)
                 
                 calloutMiniCard(for: spot)
                     .position(x: x, y: y)
@@ -844,6 +864,12 @@ struct MapScreen: View {
                 longitude: selectedLongitude,
                 radiusMeters: 10000
             )
+        }
+        .sheet(item: $streetViewTarget) { target in
+            StreetViewSheet(coordinate: target.coordinate, title: target.name)
+        }
+        .sheet(item: $clipsSpot) { spot in
+            SpotClipsView(spot: spot)
         }
         .task {
             setupTask()

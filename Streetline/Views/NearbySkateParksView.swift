@@ -69,15 +69,11 @@ struct NearbySkateParksView: View {
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                             } else if places.isEmpty {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "sportscourt")
-                                        .font(.largeTitle)
-                                        .foregroundColor(.secondary)
-                                    Text("No skate parks found in this area")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                EmptyStateCard(
+                                    title: "No skate parks nearby",
+                                    systemImage: "sportscourt",
+                                    message: "Try moving the map to another area."
+                                )
                             } else {
                                 List(places) { place in
                                     SkateParkRow(place: place)
@@ -96,15 +92,11 @@ struct NearbySkateParksView: View {
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                             } else if userSpots.isEmpty {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "mappin.and.ellipse")
-                                        .font(.largeTitle)
-                                        .foregroundColor(.secondary)
-                                    Text("No user pins found in this area")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                EmptyStateCard(
+                                    title: "No user pins nearby",
+                                    systemImage: "mappin.and.ellipse",
+                                    message: "Try another area, or add a spot on the map."
+                                )
                             } else {
                                 List(userSpots) { spot in
                                     UserSpotRow(spot: spot)

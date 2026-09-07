@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct CommunityPostDetailView: View {
     let post: CommunityPost
@@ -17,6 +18,18 @@ struct CommunityPostDetailView: View {
     @State private var loadError: String?
     @State private var submitError: String?
     @State private var removeCommentsListener: (() -> Void)?
+    @StateObject private var userService = UserService()
+    @State private var showReportPost = false
+    @State private var commentToReport: CommunityComment?
+    @State private var userToBlock: (uid: String, username: String)?
+    
+    private var currentUid: String? {
+        Auth.auth().currentUser?.uid
+    }
+    
+    private var visibleComments: [CommunityComment] {
+        comments.filter { !UserService.isUserBlocked($0.createdBy) }
+    }
     
     var body: some View {
         ZStack {
@@ -36,7 +49,7 @@ struct CommunityPostDetailView: View {
                         systemImage: "exclamationmark.triangle",
                         message: loadError
                     )
-                } else if comments.isEmpty {
+                } else if visibleComments.isEmpty {
                     bubbleStateCard(
                         title: "No replies yet",
                         systemImage: "bubble.left.and.bubble.right",
@@ -45,8 +58,22 @@ struct CommunityPostDetailView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 10) {
-                            ForEach(comments, id: \.id) { comment in
+                            ForEach(visibleComments, id: \.id) { comment in
                                 commentRow(comment)
+                                    .contextMenu {
+                                        if comment.createdBy != currentUid {
+                                            Button {
+                                                commentToReport = comment
+                                            } label: {
+                                                Label("Report reply", systemImage: "flag")
+                                            }
+                                            Button(role: .destructive) {
+                                                userToBlock = (comment.createdBy, comment.createdByUsername)
+                                            } label: {
+                                                Label("Block @\(comment.createdByUsername)", systemImage: "hand.raised")
+                                            }
+                                        }
+                                    }
                             }
                         }
                         .padding(.horizontal)
@@ -59,9 +86,82 @@ struct CommunityPostDetailView: View {
             .padding(.top, 8)
             .padding(.bottom, 10)
         }
-        .navigationTitle("Post")
+        .navigationTitle("Session")
         .navigationBarTitleDisplayMode(.inline)
-        .task { startCommentsListener() }
+        .toolbar {
+            if post.createdBy != currentUid {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button {
+                            showReportPost = true
+                        } label: {
+                            Label("Report post", systemImage: "flag")
+                        }
+                        Button(role: .destructive) {
+                            userToBlock = (post.createdBy, post.createdByUsername)
+                        } label: {
+                            Label("Block @\(post.createdByUsername)", systemImage: "hand.raised")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
+        }
+        .task {
+            await userService.loadBlockedUsers()
+            startCommentsListener()
+        }
+        .sheet(isPresented: $showReportPost) {
+            ReportContentView(
+                title: "Report Post",
+                prompt: "Why are you reporting this post?",
+                type: .communityPost,
+                targetId: post.id ?? "",
+                targetPreview: post.text,
+                reportedUserId: post.createdBy,
+                onDismiss: { showReportPost = false }
+            )
+        }
+        .sheet(isPresented: Binding(
+            get: { commentToReport != nil },
+            set: { if !$0 { commentToReport = nil } }
+        )) {
+            if let comment = commentToReport {
+                ReportContentView(
+                    title: "Report Reply",
+                    prompt: "Why are you reporting this reply?",
+                    type: .communityComment,
+                    targetId: comment.id ?? "",
+                    targetPreview: comment.text,
+                    reportedUserId: comment.createdBy,
+                    onDismiss: { commentToReport = nil }
+                )
+            }
+        }
+        .confirmationDialog(
+            "Block this user?",
+            isPresented: Binding(
+                get: { userToBlock != nil },
+                set: { if !$0 { userToBlock = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Block", role: .destructive) {
+                if let user = userToBlock {
+                    Task {
+                        try? await userService.blockUser(user.uid)
+                        comments = comments.filter { !UserService.isUserBlocked($0.createdBy) }
+                    }
+                }
+                userToBlock = nil
+            }
+            Button("Cancel", role: .cancel) { userToBlock = nil }
+        } message: {
+            if let user = userToBlock {
+                Text("You won't see posts or comments from @\(user.username).")
+            }
+        }
         .onDisappear {
             removeCommentsListener?()
             removeCommentsListener = nil
@@ -89,15 +189,15 @@ struct CommunityPostDetailView: View {
                 .buttonStyle(.plain)
                 
                 Spacer()
-                
-                Text(post.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
             
-            Text(post.text)
-                .font(.body)
-                .fixedSize(horizontal: false, vertical: true)
+            SessionPostMeta(post: post)
+            
+            if !post.text.isEmpty {
+                Text(post.text)
+                    .font(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(14)
         .frame(maxWidth: 360, alignment: .leading)
@@ -190,33 +290,7 @@ struct CommunityPostDetailView: View {
     }
     
     private func bubbleStateCard(title: String, systemImage: String, message: String) -> some View {
-        HStack {
-            Spacer(minLength: 0)
-            VStack(spacing: 10) {
-                Image(systemName: systemImage)
-                    .font(.title3)
-                    .foregroundColor(.blue)
-                Text(title)
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                    .multilineTextAlignment(.center)
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.vertical, 22)
-            .padding(.horizontal, 16)
-            .frame(maxWidth: 360)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.white.opacity(0.95))
-                    .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
-            )
-            Spacer(minLength: 0)
-        }
-        .frame(maxHeight: .infinity, alignment: .top)
-        .padding(.horizontal)
+        EmptyStateCard(title: title, systemImage: systemImage, message: message)
     }
     
     private func startCommentsListener() {

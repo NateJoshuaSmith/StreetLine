@@ -32,25 +32,37 @@ struct FavoritesListView: View {
             
             Group {
                 if !isLoggedIn {
-                    ContentUnavailableView(
-                        "Sign in to see favorites",
+                    EmptyStateCard(
+                        title: "Sign in to see favorites",
                         systemImage: "heart.slash",
-                        description: Text("Log in to save spots to your favorites list.")
+                        message: "Log in to save spots to your favorites list."
                     )
                 } else if isLoading {
                     VStack(spacing: 16) {
                         ProgressView()
                             .scaleEffect(1.2)
+                            .tint(.black)
                         Text("Loading favorites...")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.black)
                     }
+                    .padding(.vertical, 28)
+                    .padding(.horizontal, 32)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color.white)
+                            .shadow(color: .black.opacity(0.4), radius: 14, y: 8)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.black, lineWidth: 2.5)
+                    )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if favoriteSpots.isEmpty {
-                    ContentUnavailableView(
-                        "No favorites yet",
-                        systemImage: "heart",
-                        description: Text("Tap the heart on a spot to add it here.")
+                    EmptyStateCard(
+                        title: "No favorites yet",
+                        systemImage: "heart.fill",
+                        message: "Tap the heart on a spot to add it here."
                     )
                 } else {
                     List {

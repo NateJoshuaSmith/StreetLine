@@ -15,23 +15,9 @@ struct HomeView: View {
     var body: some View {
         let showFriendsDot = activityService.homeBadgeCount > 0
         return ZStack {
-            Image("CityImage")
-                .resizable()
-                .scaledToFill()
-                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                .clipped()
-                .ignoresSafeArea()
-            
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.12),
-                    Color.black.opacity(0.08),
-                    Color.black.opacity(0.45)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                HomeCityBackdrop(date: context.date)
+            }
             
             GeometryReader { geometry in
                 ScrollView(.vertical, showsIndicators: false) {
@@ -131,9 +117,11 @@ struct HomeView: View {
         VStack(spacing: 14) {
             Text("Discover and share skate spots")
                 .font(.subheadline.weight(.heavy))
-                .foregroundColor(.white)
-                .shadow(color: .black, radius: 0, x: 1.5, y: 1.5)
+                .foregroundColor(.black)
                 .multilineTextAlignment(.center)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(toolbarCapsule)
             
             HStack(spacing: 12) {
                 homeActionTile(
@@ -144,7 +132,7 @@ struct HomeView: View {
                 )
                 
                 homeActionTile(
-                    title: "POSTS",
+                    title: "SKATE WITH",
                     systemImage: "person.3.fill",
                     destination: CommunityForumView(),
                     fill: Color(red: 0.93, green: 0.18, blue: 0.58)
@@ -157,6 +145,26 @@ struct HomeView: View {
                     fill: Color(red: 1.0, green: 0.62, blue: 0.12)
                 )
             }
+            
+            NavigationLink(destination: LobbyView()) {
+                HStack(spacing: 10) {
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                        .font(.title3.weight(.heavy))
+                    Text("LOBBY")
+                        .font(.caption.weight(.heavy))
+                        .tracking(0.4)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(Color(red: 0.12, green: 0.76, blue: 0.48))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.black, lineWidth: 3)
+                )
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 8)
         .frame(maxWidth: 400)
@@ -191,6 +199,82 @@ struct HomeView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct HomeCityBackdrop: View {
+    let date: Date
+    
+    var body: some View {
+        let sky = HomeSky.current(at: date)
+        ZStack {
+            Image("CityImage")
+                .resizable()
+                .scaledToFill()
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                .clipped()
+                .colorMultiply(sky.multiply)
+                .ignoresSafeArea()
+            
+            LinearGradient(
+                colors: sky.overlay,
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+        }
+    }
+}
+
+private enum HomeSky {
+    case morning, afternoon, evening, night
+    
+    static func current(at date: Date) -> HomeSky {
+        switch Calendar.current.component(.hour, from: date) {
+        case 5..<11: return .morning
+        case 11..<17: return .afternoon
+        case 17..<21: return .evening
+        default: return .night
+        }
+    }
+    
+    var multiply: Color {
+        switch self {
+        case .morning: return Color(red: 1.0, green: 0.93, blue: 0.82)
+        case .afternoon: return .white
+        case .evening: return Color(red: 1.0, green: 0.78, blue: 0.62)
+        case .night: return Color(red: 0.48, green: 0.55, blue: 0.78)
+        }
+    }
+    
+    var overlay: [Color] {
+        switch self {
+        case .morning:
+            return [
+                Color.orange.opacity(0.18),
+                Color.yellow.opacity(0.06),
+                Color.black.opacity(0.38)
+            ]
+        case .afternoon:
+            return [
+                Color.black.opacity(0.12),
+                Color.black.opacity(0.08),
+                Color.black.opacity(0.45)
+            ]
+        case .evening:
+            return [
+                Color.orange.opacity(0.28),
+                Color.purple.opacity(0.18),
+                Color.black.opacity(0.52)
+            ]
+        case .night:
+            return [
+                Color(red: 0.05, green: 0.08, blue: 0.22).opacity(0.45),
+                Color.black.opacity(0.28),
+                Color.black.opacity(0.62)
+            ]
+        }
     }
 }
 

@@ -18,6 +18,14 @@ struct ConversationView: View {
     @State private var threadId: String?
     @State private var isReady = false
     @State private var cancelListening: (() -> Void)?
+    @StateObject private var userService = UserService()
+    @State private var showReportUser = false
+    @State private var showReportMessages = false
+    @State private var showBlockConfirm = false
+    
+    private var isBlocked: Bool {
+        userService.isBlocked(uid: friendProfile.uid)
+    }
     
     private var currentUserId: String? {
         Auth.auth().currentUser?.uid
@@ -53,27 +61,107 @@ struct ConversationView: View {
                 }
                 
                 Divider()
-                HStack(spacing: 12) {
-                    TextField("Message", text: $inputText, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(1...4)
-                        .onSubmit { sendMessage() }
-                    Button(action: sendMessage) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .blue)
+                if isBlocked {
+                    VStack(spacing: 8) {
+                        Text("You blocked this user.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Button("Unblock") {
+                            Task { try? await userService.unblockUser(friendProfile.uid) }
+                        }
                     }
-                    .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.systemBackground))
+                } else {
+                    HStack(spacing: 12) {
+                        TextField("Message", text: $inputText, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1...4)
+                            .onSubmit { sendMessage() }
+                        Button(action: sendMessage) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .blue)
+                        }
+                        .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .background(Color(.systemBackground))
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(Color(.systemBackground))
             }
         }
         .navigationTitle(friendProfile.username)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    Button {
+                        showReportMessages = true
+                    } label: {
+                        Label("Report messages", systemImage: "flag")
+                    }
+                    Button {
+                        showReportUser = true
+                    } label: {
+                        Label("Report user", systemImage: "person.crop.circle.badge.exclamationmark")
+                    }
+                    if isBlocked {
+                        Button {
+                            Task { try? await userService.unblockUser(friendProfile.uid) }
+                        } label: {
+                            Label("Unblock", systemImage: "hand.raised.slash")
+                        }
+                    } else {
+                        Button(role: .destructive) {
+                            showBlockConfirm = true
+                        } label: {
+                            Label("Block", systemImage: "hand.raised")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
+        .sheet(isPresented: $showReportUser) {
+            ReportContentView(
+                title: "Report User",
+                prompt: "Why are you reporting this account?",
+                type: .user,
+                targetId: friendProfile.uid,
+                targetPreview: friendProfile.username,
+                reportedUserId: friendProfile.uid,
+                onDismiss: { showReportUser = false }
+            )
+        }
+        .sheet(isPresented: $showReportMessages) {
+            ReportContentView(
+                title: "Report Messages",
+                prompt: "Why are you reporting this conversation?",
+                type: .message,
+                targetId: threadId ?? friendProfile.uid,
+                targetPreview: messages.last?.text,
+                reportedUserId: friendProfile.uid,
+                onDismiss: { showReportMessages = false }
+            )
+        }
+        .confirmationDialog(
+            "Block @\(friendProfile.username)?",
+            isPresented: $showBlockConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Block", role: .destructive) {
+                Task { try? await userService.blockUser(friendProfile.uid) }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("They won't be able to message you from this chat.")
+        }
         .task {
             activityService.markConversationOpened(withFriendUid: friendProfile.uid)
+            await userService.loadBlockedUsers()
             await setupThread()
         }
         .onDisappear {
@@ -104,7 +192,7 @@ struct ConversationView: View {
     
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, let tid = threadId else { return }
+        guard !text.isEmpty, let tid = threadId, !isBlocked else { return }
         inputText = ""
         Task {
             do {

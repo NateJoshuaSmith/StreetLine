@@ -20,6 +20,8 @@ struct SpotDetailView: View {
     
     @State private var showDeleteAlert = false
     @State private var showReportSheet = false
+    @State private var commentToReport: SpotComment?
+    @State private var userToBlock: (uid: String, username: String)?
     @State private var isTogglingFavorite = false
     @State private var showDeletePhotoAlert = false
     @State private var isDeleting = false
@@ -38,6 +40,7 @@ struct SpotDetailView: View {
     @State private var ratingCount: Int = 0
     @State private var userRating: Int = 0
     @State private var isSubmittingRating = false
+    @State private var showClipsSheet = false
     
     // Check if current user owns this spot
     private var isOwner: Bool {
@@ -107,6 +110,24 @@ struct SpotDetailView: View {
         return urls
     }
     
+    private var visibleSpotComments: [SpotComment] {
+        commentService.comments.filter { !UserService.isUserBlocked($0.createdBy) }
+    }
+    
+    private var showCommentReport: Binding<Bool> {
+        Binding(
+            get: { commentToReport != nil },
+            set: { if !$0 { commentToReport = nil } }
+        )
+    }
+    
+    private var showBlockDialog: Binding<Bool> {
+        Binding(
+            get: { userToBlock != nil },
+            set: { if !$0 { userToBlock = nil } }
+        )
+    }
+    
     private var photoPickerSheet: some View {
         NavigationView {
             VStack(spacing: 20) {
@@ -136,10 +157,409 @@ struct SpotDetailView: View {
         }
     }
     
+    private func detailCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack {
+            Spacer(minLength: 0)
+            content()
+                .frame(maxWidth: 360, alignment: .leading)
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+                )
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal)
+    }
+    
+    private var spotDetailStack: some View {
+        VStack(spacing: 24) {
+            photoSection
+            streetViewCard
+            clipsCard
+            nameCard
+            descriptionCard
+            ratingCard
+            addedCard
+            commentsSection
+            if isOwner {
+                deleteSpotButton
+            }
+            Spacer(minLength: 40)
+        }
+        .padding(.vertical)
+    }
+    
+    private var streetViewCard: some View {
+        detailCard {
+            StreetViewCard(
+                coordinate: CLLocationCoordinate2D(latitude: spot.latitude, longitude: spot.longitude),
+                title: spot.name
+            )
+        }
+    }
+    
+    private var clipsCard: some View {
+        detailCard {
+            Button {
+                showClipsSheet = true
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Clips", systemImage: "film")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                        Text("Watch tricks filmed at this spot")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    @ViewBuilder
+    private var photoSection: some View {
+        if !displayedImageURLs.isEmpty {
+            let urls = displayedImageURLs
+            ZStack(alignment: .bottomTrailing) {
+                TabView(selection: $selectedImageIndex) {
+                    ForEach(Array(urls.enumerated()), id: \.offset) { index, urlString in
+                        photoForURLString(urlString)
+                            .tag(index)
+                    }
+                }
+                .tabViewStyle(.page)
+                .frame(height: 200)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .padding(.horizontal)
+                
+                if isOwner {
+                    HStack {
+                        Button(action: { showPhotoPickerSheet = true }) {
+                            Image(systemName: "camera.circle.fill")
+                                .font(.title)
+                                .foregroundStyle(.white)
+                                .shadow(radius: 2)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 16)
+                        .disabled(isUploadingPhoto || isDeletingPhoto)
+                        
+                        Button(action: {
+                            pendingDeleteImageIndex = selectedImageIndex
+                            showDeletePhotoAlert = true
+                        }) {
+                            Image(systemName: "trash.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(.red)
+                                .shadow(radius: 2)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 24)
+                        .padding(.bottom, 16)
+                        .disabled(isUploadingPhoto || isDeletingPhoto)
+                    }
+                }
+            }
+        } else {
+            Group {
+                if isOwner {
+                    Button(action: { showPhotoPickerSheet = true }) {
+                        placeholderPhotoView
+                            .overlay(isUploadingPhoto ? ProgressView() : nil)
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .disabled(isUploadingPhoto)
+                    Button(action: { showPhotoPickerSheet = true }) {
+                        Label("Add photo", systemImage: "photo.badge.plus")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color(.systemGray5))
+                            .cornerRadius(10)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isUploadingPhoto)
+                } else {
+                    placeholderPhotoView
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+    
+    private var nameCard: some View {
+        detailCard {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 12) {
+                    Text(spot.name)
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    if Auth.auth().currentUser != nil, let spotId = spot.id {
+                        Button(action: { Task { await toggleFavorite() } }) {
+                            if isTogglingFavorite {
+                                ProgressView()
+                                    .frame(width: 36, height: 36)
+                            } else {
+                                Image(systemName: userService.isFavorite(spotId: spotId) ? "heart.fill" : "heart")
+                                    .font(.system(size: 28, weight: .semibold))
+                                    .foregroundColor(userService.isFavorite(spotId: spotId) ? .red : .secondary)
+                                    .frame(width: 36, height: 36)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isTogglingFavorite)
+                        .accessibilityLabel(userService.isFavorite(spotId: spotId) ? "Remove from favorites" : "Add to favorites")
+                    }
+                }
+                
+                HStack(spacing: 8) {
+                    if let difficulty = spot.difficulty {
+                        Text(difficulty)
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.12))
+                            .foregroundColor(.blue)
+                            .clipShape(Capsule())
+                    }
+                    if let status = spot.status {
+                        Text(status)
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.orange.opacity(0.12))
+                            .foregroundColor(.orange)
+                            .clipShape(Capsule())
+                    }
+                }
+                
+                if let tags = spot.tags, !tags.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(tags.prefix(4), id: \.self) { tag in
+                            Text(tag)
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color(.systemGray6))
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.top)
+    }
+    
+    private var descriptionCard: some View {
+        detailCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Description", systemImage: "text.bubble.fill")
+                    .font(.headline)
+                    .foregroundColor(.blue)
+                Text(spot.comment)
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+    
+    private var ratingCard: some View {
+        detailCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Spot Rating", systemImage: "star.bubble.fill")
+                    .font(.headline)
+                    .foregroundColor(.blue)
+                
+                HStack(spacing: 8) {
+                    Text(ratingCount > 0 ? String(format: "%.1f", averageRating) : "No ratings yet")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.primary)
+                    if ratingCount > 0 {
+                        Text("(\(ratingCount))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                HStack(spacing: 8) {
+                    ForEach(1...5, id: \.self) { star in
+                        Button {
+                            Task { await submitRating(star) }
+                        } label: {
+                            Image(systemName: star <= userRating ? "star.fill" : "star")
+                                .font(.title3)
+                                .foregroundColor(.yellow)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isSubmittingRating || Auth.auth().currentUser == nil)
+                    }
+                }
+                
+                if Auth.auth().currentUser == nil {
+                    Text("Sign in to rate this spot.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else if userRating > 0 {
+                    Text("Your rating: \(userRating) / 5")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+    
+    private var addedCard: some View {
+        detailCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Added", systemImage: "calendar")
+                    .font(.headline)
+                    .foregroundColor(.blue)
+                
+                Text(spot.createdAt, style: .date)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Button {
+                    openInMapsDirections()
+                } label: {
+                    Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule().fill(Color.blue.opacity(0.12))
+                        )
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+                
+                if let username = spot.createdByUsername, !username.isEmpty {
+                    NavigationLink(
+                        destination: UserProfileView(
+                            profile: UserProfile(uid: spot.createdBy, username: username)
+                        )
+                    ) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.fill")
+                                .font(.caption)
+                            Text("by @\(username)")
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                }
+            }
+        }
+    }
+    
+    private var commentsSection: some View {
+        detailCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Comments", systemImage: "bubble.left.and.bubble.right.fill")
+                    .font(.headline)
+                    .foregroundColor(.blue)
+                
+                HStack(alignment: .bottom, spacing: 8) {
+                    TextField("Add a comment...", text: $newCommentText, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .padding(12)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
+                        .lineLimit(1...4)
+                    
+                    Button(action: { Task { await postComment() } }) {
+                        if isPostingComment {
+                            ProgressView()
+                                .tint(.white)
+                                .scaleEffect(0.9)
+                        } else {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(.title3)
+                                Text("Post")
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        LinearGradient(
+                            colors: [.blue, .purple],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(10)
+                    .disabled(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPostingComment)
+                    .opacity(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
+                }
+                
+                ForEach(visibleSpotComments) { comment in
+                    CommentRowView(
+                        comment: comment,
+                        spotId: spot.id ?? "",
+                        commentService: commentService,
+                        onReport: { commentToReport = comment },
+                        onBlock: { userToBlock = (comment.createdBy, comment.createdByUsername ?? "user") }
+                    )
+                }
+            }
+        }
+    }
+    
+    private var deleteSpotButton: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Button(action: { showDeleteAlert = true }) {
+                HStack {
+                    Spacer()
+                    if isDeleting {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "trash.fill")
+                    }
+                    Text(isDeleting ? "Deleting..." : "Delete Spot")
+                        .fontWeight(.semibold)
+                    Spacer()
+                }
+                .foregroundColor(.white)
+                .padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.red)
+                        .shadow(color: .red.opacity(0.3), radius: 10, x: 0, y: 5)
+                )
+            }
+            .frame(maxWidth: 360)
+            .disabled(isDeleting)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal)
+    }
+    
     var body: some View {
         NavigationView {
             ZStack {
-                // Light blue gradient background (same style as other sheets)
                 LinearGradient(
                     colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.05)],
                     startPoint: .topLeading,
@@ -148,410 +568,7 @@ struct SpotDetailView: View {
                 .ignoresSafeArea()
                 
                 ScrollView {
-                    VStack(spacing: 24) {
-                        // User-uploaded spot photos (or placeholder); owner can tap to add/change
-                        if !displayedImageURLs.isEmpty {
-                            let urls = displayedImageURLs
-                            ZStack(alignment: .bottomTrailing) {
-                                TabView(selection: $selectedImageIndex) {
-                                    ForEach(Array(urls.enumerated()), id: \.offset) { index, urlString in
-                                        photoForURLString(urlString)
-                                            .tag(index)
-                                    }
-                                }
-                                .tabViewStyle(.page)
-                                .frame(height: 200)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                                .padding(.horizontal)
-                                
-                                if isOwner {
-                                    HStack {
-                                        Button(action: { showPhotoPickerSheet = true }) {
-                                            Image(systemName: "camera.circle.fill")
-                                                .font(.title)
-                                                .foregroundStyle(.white)
-                                                .shadow(radius: 2)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .padding(.trailing, 16)
-                                        .padding(.bottom, 16)
-                                        .disabled(isUploadingPhoto || isDeletingPhoto)
-                                        
-                                        if !displayedImageURLs.isEmpty {
-                                            Button(action: {
-                                                pendingDeleteImageIndex = selectedImageIndex
-                                                showDeletePhotoAlert = true
-                                            }) {
-                                                Image(systemName: "trash.circle.fill")
-                                                    .font(.title2)
-                                                    .foregroundStyle(.red)
-                                                    .shadow(radius: 2)
-                                            }
-                                            .buttonStyle(.plain)
-                                            .padding(.trailing, 24)
-                                            .padding(.bottom, 16)
-                                            .disabled(isUploadingPhoto || isDeletingPhoto)
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            Group {
-                                if isOwner {
-                                    Button(action: { showPhotoPickerSheet = true }) {
-                                        placeholderPhotoView
-                                            .overlay(isUploadingPhoto ? ProgressView() : nil)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .contentShape(Rectangle())
-                                    .disabled(isUploadingPhoto)
-                                    Button(action: { showPhotoPickerSheet = true }) {
-                                        Label("Add photo", systemImage: "photo.badge.plus")
-                                            .font(.headline)
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 12)
-                                            .background(Color(.systemGray5))
-                                            .cornerRadius(10)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(isUploadingPhoto)
-                                } else {
-                                    placeholderPhotoView
-                                }
-                            }
-                            .padding(.horizontal)
-                        }
-                        
-                        // Spot Name Card (centered bubble)
-                        HStack {
-                            Spacer(minLength: 0)
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(alignment: .top, spacing: 12) {
-                                    Text(spot.name)
-                                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                                        .foregroundColor(.primary)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    
-                                    if Auth.auth().currentUser != nil, let spotId = spot.id {
-                                        Button(action: { Task { await toggleFavorite() } }) {
-                                            if isTogglingFavorite {
-                                                ProgressView()
-                                                    .frame(width: 36, height: 36)
-                                            } else {
-                                                Image(systemName: userService.isFavorite(spotId: spotId) ? "heart.fill" : "heart")
-                                                    .font(.system(size: 28, weight: .semibold))
-                                                    .foregroundColor(userService.isFavorite(spotId: spotId) ? .red : .secondary)
-                                                    .frame(width: 36, height: 36)
-                                            }
-                                        }
-                                        .buttonStyle(.plain)
-                                        .disabled(isTogglingFavorite)
-                                        .accessibilityLabel(userService.isFavorite(spotId: spotId) ? "Remove from favorites" : "Add to favorites")
-                                    }
-                                }
-                                
-                                // Difficulty / status badges
-                                HStack(spacing: 8) {
-                                    if let difficulty = spot.difficulty {
-                                        Text(difficulty)
-                                            .font(.caption)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(Color.blue.opacity(0.12))
-                                            .foregroundColor(.blue)
-                                            .clipShape(Capsule())
-                                    }
-                                    if let status = spot.status {
-                                        Text(status)
-                                            .font(.caption)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(Color.orange.opacity(0.12))
-                                            .foregroundColor(.orange)
-                                            .clipShape(Capsule())
-                                    }
-                                }
-                                
-                                // Tags chips
-                                if let tags = spot.tags, !tags.isEmpty {
-                                    HStack(spacing: 6) {
-                                        ForEach(tags.prefix(4), id: \.self) { tag in
-                                            Text(tag)
-                                                .font(.caption2)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 3)
-                                                .background(Color(.systemGray6))
-                                                .clipShape(Capsule())
-                                        }
-                                    }
-                                }
-                            }
-                            .frame(maxWidth: 360, alignment: .leading)
-                            .padding(20)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color(.systemBackground))
-                                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                            )
-                            
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal)
-                        .padding(.top)
-                        
-                        // Description Card (centered bubble)
-                        HStack {
-                            Spacer(minLength: 0)
-                            
-                            VStack(alignment: .leading, spacing: 12) {
-                                Label("Description", systemImage: "text.bubble.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                
-                                Text(spot.comment)
-                                    .font(.body)
-                                    .foregroundColor(.primary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .frame(maxWidth: 360, alignment: .leading)
-                            .padding(20)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color(.systemBackground))
-                                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                            )
-                            
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal)
-                        
-                        // Created Date & Creator Card (centered bubble)
-                        HStack {
-                            Spacer(minLength: 0)
-                            
-                            VStack(alignment: .leading, spacing: 12) {
-                                Label("Spot Rating", systemImage: "star.bubble.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                
-                                HStack(spacing: 8) {
-                                    Text(ratingCount > 0 ? String(format: "%.1f", averageRating) : "No ratings yet")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundColor(.primary)
-                                    if ratingCount > 0 {
-                                        Text("(\(ratingCount))")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                
-                                HStack(spacing: 8) {
-                                    ForEach(1...5, id: \.self) { star in
-                                        Button {
-                                            Task { await submitRating(star) }
-                                        } label: {
-                                            Image(systemName: star <= userRating ? "star.fill" : "star")
-                                                .font(.title3)
-                                                .foregroundColor(.yellow)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .disabled(isSubmittingRating || Auth.auth().currentUser == nil)
-                                    }
-                                }
-                                
-                                if Auth.auth().currentUser == nil {
-                                    Text("Sign in to rate this spot.")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                } else if userRating > 0 {
-                                    Text("Your rating: \(userRating) / 5")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .frame(maxWidth: 360, alignment: .leading)
-                            .padding(20)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color(.systemBackground))
-                                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                            )
-                            
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal)
-                        
-                        // Created Date & Creator Card (centered bubble)
-                        HStack {
-                            Spacer(minLength: 0)
-                            
-                            VStack(alignment: .leading, spacing: 12) {
-                                Label("Added", systemImage: "calendar")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                
-                                Text(spot.createdAt, style: .date)
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-
-                                // Directions button to open Apple Maps
-                                Button {
-                                    openInMapsDirections()
-                                } label: {
-                                    Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundColor(.blue)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(
-                                            Capsule().fill(Color.blue.opacity(0.12))
-                                        )
-                                }
-                                .buttonStyle(.plain)
-                                .padding(.top, 4)
-                                
-                                if let username = spot.createdByUsername, !username.isEmpty {
-                                    NavigationLink(
-                                        destination: UserProfileView(
-                                            profile: UserProfile(
-                                                uid: spot.createdBy,
-                                                username: username
-                                            )
-                                        )
-                                    ) {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "person.fill")
-                                                .font(.caption)
-                                            Text("by @\(username)")
-                                                .font(.subheadline)
-                                                .foregroundColor(.blue)
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-                                    .padding(.top, 4)
-                                }
-                            }
-                            .frame(maxWidth: 360, alignment: .leading)
-                            .padding(20)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color(.systemBackground))
-                                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                            )
-                            
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal)
-                        
-                        // Comments Section (centered bubble)
-                        HStack {
-                            Spacer(minLength: 0)
-                            
-                            VStack(alignment: .leading, spacing: 12) {
-                                Label("Comments", systemImage: "bubble.left.and.bubble.right.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                
-                                // Add comment
-                                HStack(alignment: .bottom, spacing: 8) {
-                                    TextField("Add a comment...", text: $newCommentText, axis: .vertical)
-                                        .textFieldStyle(.plain)
-                                        .padding(12)
-                                        .background(Color(.systemGray6))
-                                        .cornerRadius(10)
-                                        .lineLimit(1...4)
-                                    
-                                    Button(action: { Task { await postComment() } }) {
-                                        if isPostingComment {
-                                            ProgressView()
-                                                .tint(.white)
-                                                .scaleEffect(0.9)
-                                        } else {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: "arrow.up.circle.fill")
-                                                    .font(.title3)
-                                                Text("Post")
-                                                    .fontWeight(.semibold)
-                                            }
-                                        }
-                                    }
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [.blue, .purple],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .cornerRadius(10)
-                                    .disabled(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPostingComment)
-                                    .opacity(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
-                                }
-                                
-                                // Comment list
-                                ForEach(commentService.comments) { comment in
-                                    CommentRowView(
-                                        comment: comment,
-                                        spotId: spot.id ?? "",
-                                        commentService: commentService
-                                    )
-                                }
-                            }
-                            .frame(maxWidth: 360, alignment: .leading)
-                            .padding(20)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color(.systemBackground))
-                                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                            )
-                            
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal)
-                        
-                        // Delete Button (only show if user owns the spot) – centered bubble
-                        if isOwner {
-                            HStack {
-                                Spacer(minLength: 0)
-                                
-                                Button(action: {
-                                    showDeleteAlert = true
-                                }) {
-                                    HStack {
-                                        Spacer()
-                                        if isDeleting {
-                                            ProgressView()
-                                                .tint(.white)
-                                        } else {
-                                            Image(systemName: "trash.fill")
-                                        }
-                                        Text(isDeleting ? "Deleting..." : "Delete Spot")
-                                            .fontWeight(.semibold)
-                                        Spacer()
-                                    }
-                                    .foregroundColor(.white)
-                                    .padding(.vertical, 16)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .fill(Color.red)
-                                            .shadow(color: .red.opacity(0.3), radius: 10, x: 0, y: 5)
-                                    )
-                                }
-                                .frame(maxWidth: 360)
-                                .disabled(isDeleting)
-                                
-                                Spacer(minLength: 0)
-                            }
-                            .padding(.horizontal)
-                        }
-                        
-                        Spacer(minLength: 40)
-                    }
-                    .padding(.vertical)
+                    spotDetailStack
                 }
                 .navigationTitle("Spot Details")
                 .navigationBarTitleDisplayMode(.inline)
@@ -588,6 +605,38 @@ struct SpotDetailView: View {
                         reportService: reportService,
                         onDismiss: { showReportSheet = false }
                     )
+                }
+                .sheet(isPresented: showCommentReport) {
+                    if let comment = commentToReport {
+                        ReportContentView(
+                            title: "Report Comment",
+                            prompt: "Why are you reporting this comment?",
+                            type: .spotComment,
+                            targetId: comment.id ?? "",
+                            targetPreview: comment.text,
+                            reportedUserId: comment.createdBy,
+                            spotId: spot.id,
+                            spotName: spot.name,
+                            onDismiss: { commentToReport = nil }
+                        )
+                    }
+                }
+                .confirmationDialog(
+                    "Block this user?",
+                    isPresented: showBlockDialog,
+                    titleVisibility: .visible
+                ) {
+                    Button("Block", role: .destructive) {
+                        if let user = userToBlock {
+                            Task { try? await userService.blockUser(user.uid) }
+                        }
+                        userToBlock = nil
+                    }
+                    Button("Cancel", role: .cancel) { userToBlock = nil }
+                } message: {
+                    if let user = userToBlock {
+                        Text("You won't see comments from @\(user.username).")
+                    }
                 }
                 .alert("Delete Spot?", isPresented: $showDeleteAlert) {
                     Button("Cancel", role: .cancel) { }
@@ -629,7 +678,10 @@ struct SpotDetailView: View {
                         Task { await loadRatingSummary(spotId: spotId) }
                     }
                     localImageURL = nil
-                    Task { await userService.loadFavorites() }
+                    Task {
+                        await userService.loadFavorites()
+                        await userService.loadBlockedUsers()
+                    }
                 }
                 .onChange(of: selectedPhotoItem) { _, newItem in
                     guard isOwner, let item = newItem else { return }
@@ -638,6 +690,9 @@ struct SpotDetailView: View {
                 }
                 .sheet(isPresented: $showPhotoPickerSheet) {
                     photoPickerSheet
+                }
+                .sheet(isPresented: $showClipsSheet) {
+                    SpotClipsView(spot: spot)
                 }
                 .onDisappear {
                     commentService.stopListening()
@@ -791,6 +846,8 @@ struct SpotDetailView: View {
         let comment: SpotComment
         let spotId: String
         @ObservedObject var commentService: CommentService
+        var onReport: () -> Void
+        var onBlock: () -> Void
         
         private var currentUserId: String? {
             Auth.auth().currentUser?.uid
@@ -851,6 +908,16 @@ struct SpotDetailView: View {
             .padding(12)
             .background(Color(.systemGray6))
             .cornerRadius(10)
+            .contextMenu {
+                if comment.createdBy != currentUserId {
+                    Button(action: onReport) {
+                        Label("Report comment", systemImage: "flag")
+                    }
+                    Button(role: .destructive, action: onBlock) {
+                        Label("Block", systemImage: "hand.raised")
+                    }
+                }
+            }
         }
     }
     
@@ -928,11 +995,15 @@ struct SpotDetailView: View {
             errorMessage = nil
             defer { isSubmitting = false }
             do {
-                try await reportService.submitReport(
-                    spotId: spotId,
-                    spotName: spot.name,
+                try await reportService.submitContentReport(
+                    type: .spot,
+                    targetId: spotId,
+                    targetPreview: spot.name,
+                    reportedUserId: spot.createdBy,
                     reason: selectedReasonId,
-                    comment: commentText.isEmpty ? nil : commentText
+                    comment: commentText.isEmpty ? nil : commentText,
+                    spotId: spotId,
+                    spotName: spot.name
                 )
                 showSuccess = true
             } catch {

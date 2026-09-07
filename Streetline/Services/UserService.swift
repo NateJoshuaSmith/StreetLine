@@ -44,6 +44,33 @@ extension UserService {
         defer { friendsListCacheLock.unlock() }
         friendsListDisplayCache = nil
     }
+    
+    private static let blockedIdsLock = NSLock()
+    private static var cachedBlockedUserIds: [String] = []
+    
+    static func cachedBlockedIds() -> [String] {
+        blockedIdsLock.lock()
+        defer { blockedIdsLock.unlock() }
+        return cachedBlockedUserIds
+    }
+    
+    static func isUserBlocked(_ uid: String) -> Bool {
+        blockedIdsLock.lock()
+        defer { blockedIdsLock.unlock() }
+        return cachedBlockedUserIds.contains(uid)
+    }
+    
+    static func storeBlockedIds(_ ids: [String]) {
+        blockedIdsLock.lock()
+        defer { blockedIdsLock.unlock() }
+        cachedBlockedUserIds = ids
+    }
+    
+    static func clearBlockedCache() {
+        blockedIdsLock.lock()
+        defer { blockedIdsLock.unlock() }
+        cachedBlockedUserIds = []
+    }
 }
 
 class UserService: ObservableObject {
@@ -56,6 +83,9 @@ class UserService: ObservableObject {
     
     /// Favorite spot IDs for the current user (loaded via loadFavorites())
     @Published var favoriteSpotIds: [String] = []
+    
+    /// Users the current account has blocked.
+    @Published var blockedUserIds: [String] = UserService.cachedBlockedIds()
     
     /// Username rules: 3–20 characters, letters/numbers/underscore only
     static let usernameMinLength = 3
@@ -368,6 +398,75 @@ class UserService: ObservableObject {
         friendIds.contains(uid)
     }
     
+    // MARK: - Blocking
+    
+    func isBlocked(uid: String) -> Bool {
+        blockedUserIds.contains(uid) || UserService.isUserBlocked(uid)
+    }
+    
+    func loadBlockedUsers() async {
+        guard let uid = authService.currentUserId else {
+            await MainActor.run {
+                blockedUserIds = []
+                UserService.clearBlockedCache()
+            }
+            return
+        }
+        do {
+            let doc = try await db.collection(collectionName).document(uid).getDocument()
+            let ids = doc.data()?["blockedUserIds"] as? [String] ?? []
+            await MainActor.run {
+                blockedUserIds = ids
+                UserService.storeBlockedIds(ids)
+            }
+        } catch {
+            await MainActor.run {
+                blockedUserIds = UserService.cachedBlockedIds()
+            }
+        }
+    }
+    
+    func blockUser(_ otherUid: String) async throws {
+        guard let uid = authService.currentUserId else {
+            throw NSError(domain: "UserService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
+        }
+        guard otherUid != uid else {
+            throw NSError(domain: "UserService", code: 400, userInfo: [NSLocalizedDescriptionKey: "You can't block yourself"])
+        }
+        try await db.collection(collectionName).document(uid).setData([
+            "blockedUserIds": FieldValue.arrayUnion([otherUid])
+        ], merge: true)
+        try? await removeFriend(friendUid: otherUid)
+        try? await db.collection(collectionName).document(otherUid).setData([
+            "friendIds": FieldValue.arrayRemove([uid])
+        ], merge: true)
+        await MainActor.run {
+            if !blockedUserIds.contains(otherUid) {
+                blockedUserIds.append(otherUid)
+            }
+            UserService.storeBlockedIds(blockedUserIds)
+            UserService.clearFriendsListDisplayCache()
+        }
+    }
+    
+    func unblockUser(_ otherUid: String) async throws {
+        guard let uid = authService.currentUserId else {
+            throw NSError(domain: "UserService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
+        }
+        try await db.collection(collectionName).document(uid).setData([
+            "blockedUserIds": FieldValue.arrayRemove([otherUid])
+        ], merge: true)
+        await MainActor.run {
+            blockedUserIds.removeAll { $0 == otherUid }
+            UserService.storeBlockedIds(blockedUserIds)
+        }
+    }
+    
+    func fetchBlockedProfiles() async -> [UserProfile] {
+        await loadBlockedUsers()
+        return (try? await fetchProfiles(forUids: blockedUserIds)) ?? []
+    }
+    
     /// Returns true if the current user has a pending sent request to this UID.
     func hasPendingSentRequest(toUid: String) -> Bool {
         pendingSentIds.contains(toUid)
@@ -382,6 +481,9 @@ class UserService: ObservableObject {
         }
         guard toUid != uid else {
             throw NSError(domain: "UserService", code: 400, userInfo: [NSLocalizedDescriptionKey: "You can't add yourself"])
+        }
+        if isBlocked(uid: toUid) {
+            throw NSError(domain: "UserService", code: 403, userInfo: [NSLocalizedDescriptionKey: "You blocked this user"])
         }
         let requestId = FriendRequest.requestId(from: uid, to: toUid)
         let ref = db.collection(friendRequestsCollection).document(requestId)
@@ -541,7 +643,7 @@ class UserService: ObservableObject {
         var profiles: [UserProfile] = []
         for doc in snapshot.documents {
             guard doc.documentID != currentUid else { continue }
-            if let profile = try? doc.data(as: UserProfile.self) {
+            if let profile = try? doc.data(as: UserProfile.self), !isBlocked(uid: profile.uid) {
                 profiles.append(profile)
             }
         }
@@ -566,6 +668,7 @@ class UserService: ObservableObject {
         for doc in spots.documents {
             await deleteSubcollection(parent: doc.reference, name: "comments")
             await deleteSubcollection(parent: doc.reference, name: "ratings")
+            await deleteSubcollection(parent: doc.reference, name: "clips")
             if let urls = doc.data()["imageURLs"] as? [String] {
                 for url in urls { await deleteStorageURL(url) }
             }
@@ -586,7 +689,9 @@ class UserService: ObservableObject {
         await deleteQuery(db.collection("friendRequests").whereField("fromUid", isEqualTo: uid))
         await deleteQuery(db.collection("friendRequests").whereField("toUid", isEqualTo: uid))
         await deleteQuery(db.collection("reports").whereField("reportedBy", isEqualTo: uid))
+        await deleteQuery(db.collection("reports").whereField("reportedUserId", isEqualTo: uid))
         await deleteQuery(db.collection("threads").whereField("participantIds", arrayContains: uid))
+        await deleteQuery(db.collection("communityPosts").document("lobby").collection("comments").whereField("createdBy", isEqualTo: uid))
         
         for friendId in friendIds {
             try? await db.collection(collectionName).document(friendId).setData([
@@ -597,6 +702,7 @@ class UserService: ObservableObject {
         try? await db.collection(collectionName).document(uid).delete()
         UserDefaults.standard.removeObject(forKey: "threadLastReadAt.\(uid)")
         UserService.clearFriendsListDisplayCache()
+        UserService.clearBlockedCache()
     }
     
     private func deleteQuery(_ query: Query) async {

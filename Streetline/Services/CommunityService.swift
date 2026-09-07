@@ -15,20 +15,39 @@ class CommunityService: ObservableObject {
     private let db = Firestore.firestore()
     private let collectionName = "communityPosts"
     
-    /// Create a new post in the community forum.
-    func createPost(text: String) async throws {
+    /// Create a new skate-with session post.
+    func createPost(
+        text: String,
+        sessionAt: Date,
+        sessionWhat: String,
+        spot: SkateSpot?,
+        locationText: String?
+    ) async throws {
         guard let uid = authService.currentUserId else {
             throw NSError(domain: "CommunityService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
         }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        let customPlace = locationText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let what = sessionWhat.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !what.isEmpty else {
+            throw NSError(domain: "CommunityService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Pick what you're skating"])
+        }
+        guard spot != nil || !customPlace.isEmpty else {
+            throw NSError(domain: "CommunityService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Add a spot or type a place"])
+        }
         
         let username = await userService.getCurrentUsername() ?? "Unknown"
         let post = CommunityPost(
             createdBy: uid,
             createdByUsername: username,
             text: trimmed,
-            createdAt: Date()
+            createdAt: Date(),
+            sessionAt: sessionAt,
+            sessionWhat: what,
+            spotId: spot?.id,
+            spotName: spot?.name,
+            locationText: spot == nil ? customPlace : nil,
+            expiresAt: sessionAt.addingTimeInterval(CommunityPost.lifetime)
         )
         let ref = db.collection(collectionName).document()
         try await ref.setData(from: post)
@@ -52,6 +71,7 @@ class CommunityService: ObservableObject {
                 return
             }
             let posts = snapshot.documents.compactMap { try? $0.data(as: CommunityPost.self) }
+                .filter { $0.id != CommunityPost.lobbyDocumentId && !$0.isExpired }
             Task { @MainActor in
                 onUpdate(posts)
             }
@@ -67,6 +87,7 @@ class CommunityService: ObservableObject {
             .order(by: "createdAt", descending: true)
             .getDocuments()
         return snapshot.documents.compactMap { try? $0.data(as: CommunityPost.self) }
+            .filter { !$0.isExpired }
     }
     
     /// Create a reply on a specific community post.

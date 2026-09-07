@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var showChangeUsername = false
     @State private var showChangeEmail = false
     @State private var showDeleteAccount = false
+    @State private var showBlockedUsers = false
     
     var body: some View {
         ZStack {
@@ -105,6 +106,9 @@ struct SettingsView: View {
             )
             .environmentObject(viewModel)
         }
+        .sheet(isPresented: $showBlockedUsers) {
+            BlockedUsersView(userService: userService)
+        }
     }
     
     private var settingsCard: some View {
@@ -174,6 +178,15 @@ struct SettingsView: View {
                 settingsRow(
                     title: "Contact Support",
                     systemImage: "envelope.fill",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
+            
+            Button(action: { showBlockedUsers = true }) {
+                settingsRow(
+                    title: "Blocked users",
+                    systemImage: "hand.raised.fill",
                     showsChevron: true
                 )
             }
@@ -639,6 +652,60 @@ struct DeleteAccountView: View {
             onDismiss()
         } catch {
             errorMessage = (error as NSError).localizedDescription
+        }
+    }
+}
+
+// MARK: - Blocked users
+
+struct BlockedUsersView: View {
+    @ObservedObject var userService: UserService
+    @Environment(\.dismiss) private var dismiss
+    @State private var profiles: [UserProfile] = []
+    @State private var isLoading = true
+    
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isLoading {
+                    ProgressView("Loading...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if profiles.isEmpty {
+                    EmptyStateCard(
+                        title: "No blocked users",
+                        systemImage: "hand.raised.slash",
+                        message: "People you block are hidden from posts, comments, and messages."
+                    )
+                } else {
+                    List(profiles, id: \.uid) { profile in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("@\(profile.username)")
+                                    .font(.headline)
+                            }
+                            Spacer()
+                            Button("Unblock") {
+                                Task {
+                                    try? await userService.unblockUser(profile.uid)
+                                    profiles.removeAll { $0.uid == profile.uid }
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Blocked users")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task {
+                profiles = await userService.fetchBlockedProfiles()
+                isLoading = false
+            }
         }
     }
 }

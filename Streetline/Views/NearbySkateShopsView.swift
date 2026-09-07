@@ -41,15 +41,11 @@ struct NearbySkateShopsView: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if places.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "storefront")
-                                .font(.largeTitle)
-                                .foregroundColor(.secondary)
-                            Text("No skate shops found in this area")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        EmptyStateCard(
+                            title: "No skate shops nearby",
+                            systemImage: "storefront",
+                            message: "Try moving the map to another area."
+                        )
                     } else {
                         List(places) { place in
                             SkateShopRow(place: place)
