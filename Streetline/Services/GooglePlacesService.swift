@@ -3,7 +3,7 @@
 //  SpotFinder
 //
 //  Fetches place photo URL from Google Places API (New) for a spot's location.
-//  Add your API key: Target → Info → Custom iOS Target Properties → GooglePlacesAPIKey
+//  Add your API key in Secrets.xcconfig (GOOGLE_PLACES_API_KEY). It is injected into Info.plist at build time.
 //
 
 import Foundation
@@ -24,7 +24,7 @@ struct NearbyPlace: Identifiable {
 
 struct GooglePlacesService {
     
-    /// Read from Target Info: GooglePlacesAPIKey. Restrict key to Places API and iOS app in Google Cloud Console.
+    /// Read from Info.plist (filled from Secrets.xcconfig). Restrict the key to Places API + this iOS bundle ID.
     private static var apiKey: String? {
         let raw = Bundle.main.object(forInfoDictionaryKey: "GooglePlacesAPIKey") as? String
         if let raw, !raw.isEmpty {

@@ -547,4 +547,92 @@ class UserService: ObservableObject {
         }
         return profiles
     }
+    
+    /// Remove this user's Firestore and Storage data. Call while still signed in, before Auth delete.
+    func deleteAllAccountData() async throws {
+        guard let uid = authService.currentUserId else {
+            throw NSError(domain: "UserService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
+        }
+        
+        let userDoc = try? await db.collection(collectionName).document(uid).getDocument()
+        let friendIds = userDoc?.data()?["friendIds"] as? [String] ?? []
+        
+        await deleteStorageFolder(path: "\(avatarPathPrefix)/\(uid).jpg", isFile: true)
+        await deleteStorageFolder(path: "spotImages/\(uid)", isFile: false)
+        
+        let spots = try await db.collection(spotsCollectionName)
+            .whereField("createdBy", isEqualTo: uid)
+            .getDocuments()
+        for doc in spots.documents {
+            await deleteSubcollection(parent: doc.reference, name: "comments")
+            await deleteSubcollection(parent: doc.reference, name: "ratings")
+            if let urls = doc.data()["imageURLs"] as? [String] {
+                for url in urls { await deleteStorageURL(url) }
+            }
+            if let url = doc.data()["imageURL"] as? String {
+                await deleteStorageURL(url)
+            }
+            try? await doc.reference.delete()
+        }
+        
+        let posts = try? await db.collection("communityPosts")
+            .whereField("createdBy", isEqualTo: uid)
+            .getDocuments()
+        for doc in posts?.documents ?? [] {
+            await deleteSubcollection(parent: doc.reference, name: "comments")
+            try? await doc.reference.delete()
+        }
+        
+        await deleteQuery(db.collection("friendRequests").whereField("fromUid", isEqualTo: uid))
+        await deleteQuery(db.collection("friendRequests").whereField("toUid", isEqualTo: uid))
+        await deleteQuery(db.collection("reports").whereField("reportedBy", isEqualTo: uid))
+        await deleteQuery(db.collection("threads").whereField("participantIds", arrayContains: uid))
+        
+        for friendId in friendIds {
+            try? await db.collection(collectionName).document(friendId).setData([
+                "friendIds": FieldValue.arrayRemove([uid])
+            ], merge: true)
+        }
+        
+        try? await db.collection(collectionName).document(uid).delete()
+        UserDefaults.standard.removeObject(forKey: "threadLastReadAt.\(uid)")
+        UserService.clearFriendsListDisplayCache()
+    }
+    
+    private func deleteQuery(_ query: Query) async {
+        let snapshot = try? await query.getDocuments()
+        for doc in snapshot?.documents ?? [] {
+            await deleteSubcollection(parent: doc.reference, name: "messages")
+            await deleteSubcollection(parent: doc.reference, name: "comments")
+            try? await doc.reference.delete()
+        }
+    }
+    
+    private func deleteSubcollection(parent: DocumentReference, name: String) async {
+        let snapshot = try? await parent.collection(name).limit(to: 200).getDocuments()
+        for doc in snapshot?.documents ?? [] {
+            try? await doc.reference.delete()
+        }
+    }
+    
+    private func deleteStorageFolder(path: String, isFile: Bool) async {
+        let ref = storage.reference().child(path)
+        if isFile {
+            try? await ref.delete()
+            return
+        }
+        guard let list = try? await ref.listAll() else { return }
+        for item in list.items {
+            try? await item.delete()
+        }
+        for prefix in list.prefixes {
+            await deleteStorageFolder(path: prefix.fullPath, isFile: false)
+        }
+    }
+    
+    private func deleteStorageURL(_ urlString: String) async {
+        guard let url = URL(string: urlString), url.scheme != nil else { return }
+        let ref = storage.reference(forURL: urlString)
+        try? await ref.delete()
+    }
 }

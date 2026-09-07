@@ -1,0 +1,7 @@
+# Local API keys — copy Secrets.xcconfig.example → Secrets.xcconfig
+Secrets.xcconfig
+
+.DS_Store
+xcuserdata/
+*.xcuserstate
+derivedData/

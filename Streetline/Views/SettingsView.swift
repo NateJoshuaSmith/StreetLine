@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var showContactSupport = false
     @State private var showChangeUsername = false
     @State private var showChangeEmail = false
+    @State private var showDeleteAccount = false
     
     var body: some View {
         ZStack {
@@ -98,6 +99,12 @@ struct SettingsView: View {
                 }
             )
         }
+        .sheet(isPresented: $showDeleteAccount) {
+            DeleteAccountView(
+                onDismiss: { showDeleteAccount = false }
+            )
+            .environmentObject(viewModel)
+        }
     }
     
     private var settingsCard: some View {
@@ -158,7 +165,7 @@ struct SettingsView: View {
             settingsRow(
                 title: "App Name",
                 systemImage: "app.fill",
-                value: "Spotfinder"
+                value: "Streetline"
             )
             
             sectionLabel("Help")
@@ -167,6 +174,17 @@ struct SettingsView: View {
                 settingsRow(
                     title: "Contact Support",
                     systemImage: "envelope.fill",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
+            
+            sectionLabel("Account")
+            
+            Button(role: .destructive, action: { showDeleteAccount = true }) {
+                settingsRow(
+                    title: "Delete account",
+                    systemImage: "trash.fill",
                     showsChevron: true
                 )
             }
@@ -544,10 +562,92 @@ struct ChangeEmailView: View {
     }
 }
 
+// MARK: - Delete Account
+struct DeleteAccountView: View {
+    var onDismiss: () -> Void
+    
+    @EnvironmentObject var viewModel: LoginViewModel
+    @EnvironmentObject var activityService: ActivityService
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var password = ""
+    @State private var typedConfirm = ""
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("This permanently deletes your Streetline account, spots you added, photos, posts, and messages. This cannot be undone.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
+                Section {
+                    SecureField("Current password", text: $password)
+                        .textContentType(.password)
+                        .disabled(isDeleting)
+                    TextField("Type DELETE to confirm", text: $typedConfirm)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                        .disabled(isDeleting)
+                } footer: {
+                    Text("Enter your password, then type DELETE.")
+                }
+                
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                            .font(.subheadline)
+                    }
+                }
+            }
+            .navigationTitle("Delete account")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                        onDismiss()
+                    }
+                    .disabled(isDeleting)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Delete", role: .destructive) {
+                        Task { await deleteAccount() }
+                    }
+                    .disabled(isDeleting || !canDelete)
+                }
+            }
+        }
+    }
+    
+    private var canDelete: Bool {
+        !password.isEmpty && typedConfirm.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == "DELETE"
+    }
+    
+    private func deleteAccount() async {
+        errorMessage = nil
+        isDeleting = true
+        defer { isDeleting = false }
+        do {
+            try await viewModel.deleteAccount(currentPassword: password)
+            activityService.stopListening()
+            dismiss()
+            onDismiss()
+        } catch {
+            errorMessage = (error as NSError).localizedDescription
+        }
+    }
+}
+
 #Preview {
     NavigationView {
         SettingsView()
             .environmentObject(LoginViewModel())
+            .environmentObject(ActivityService())
     }
 }
 

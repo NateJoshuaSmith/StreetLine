@@ -24,7 +24,7 @@ struct Login: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 12)
                 
-                SpotFinderLogoBadge(showsOutline: true)
+                StreetlineLogoBadge(showsOutline: true)
                     .frame(maxWidth: .infinity)
                 
                 Spacer(minLength: 12)

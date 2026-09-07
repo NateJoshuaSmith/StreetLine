@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>Spotfinder.Spotfinder</string>
+	<string>Streetline.Streetline</string>
 	<key>PROJECT_ID</key>
 	<string>spotfinder-75f62</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:85252911888:ios:56c843d9b5b77a38602b95</string>
+	<string>1:85252911888:ios:01ce210d92b614da602b95</string>
 </dict>
 </plist>

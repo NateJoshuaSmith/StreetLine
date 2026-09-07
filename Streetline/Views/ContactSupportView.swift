@@ -1,15 +1,12 @@
 //
 //  ContactSupportView.swift
-//  SpotFinder
-//
-//  Change supportEmail to your actual support address.
+//  Streetline
 //
 
 import SwiftUI
 
 struct ContactSupportView: View {
-    // Change this to your support email address
-    private let supportEmail = "support@yourapp.com"
+    private let supportEmail = "streetlinesupport@gmail.com"
     
     @State private var subject: String = ""
     @State private var message: String = ""
@@ -25,7 +22,7 @@ struct ContactSupportView: View {
             GeometryReader { geo in
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack {
-                        SpotFinderLogoBadge(showsOutline: true)
+                        StreetlineLogoBadge(showsOutline: true)
                             .padding(.top, 36)
                         
                         Spacer(minLength: 16)
@@ -173,7 +170,7 @@ struct ContactSupportView: View {
     private func buildEmailBody() -> String {
         var lines: [String] = []
         lines.append("---")
-        lines.append("SpotFinder \(appVersion)")
+        lines.append("Streetline \(appVersion)")
         lines.append("---")
         lines.append("")
         lines.append(message)

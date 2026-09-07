@@ -132,7 +132,7 @@ From the map, open the storefront or skateboarding icons.
 - **Skate shops** — Google Places search around the current map center (about 10 km). Tap a result for directions in Apple Maps.
 - **Skate parks** — same Places search for parks, plus a **User Pins** tab that lists Streetline spots in the area.
 
-These lists need a Google Places API key in the app Info plist (`GooglePlacesAPIKey`). Without a key, the lists stay empty.
+These lists need a Google Places API key in `Secrets.xcconfig` (`GOOGLE_PLACES_API_KEY`). Without a key, the lists stay empty.
 
 ### Settings and support
 
@@ -157,25 +157,25 @@ Settings (home wrench menu) shows your avatar, `@username`, and email.
 ```
 Streetline/
 ├── Streetline/
-│   ├── SpotFinderApp.swift      # App entry, login vs home vs username setup
-│   ├── Info.plist               # Google Places key (optional)
+│   ├── StreetlineApp.swift      # App entry, login vs home vs username setup
+│   ├── Info.plist               # Places key placeholder ($(GOOGLE_PLACES_API_KEY))
 │   ├── Models/                  # Spot, user, message, post, report types
 │   ├── Views/                   # Screens (map, home, friends, community, …)
 │   ├── ViewModels/              # Login / session
 │   └── Services/                # Firebase, location, Places
-└── SpotFinder.xcodeproj
+└── Streetline.xcodeproj
 ```
 
 ## Getting started
 
 1. Clone the repository.
-2. Open `SpotFinder.xcodeproj` in Xcode.
+2. Open `Streetline.xcodeproj` in Xcode.
 3. Configure Firebase:
    - Add `GoogleService-Info.plist` to the app target.
    - Enable Email/Password in Authentication.
    - Create a Firestore database.
    - Enable Storage so signed-in users can read/write spot images and avatars.
-4. (Optional) Add a Google Places API key as `GooglePlacesAPIKey` in the target Info settings, restricted to the Places API and this iOS app. That powers nearby shops and parks.
+4. (Optional) Copy `Secrets.xcconfig.example` to `Secrets.xcconfig` and set `GOOGLE_PLACES_API_KEY`. Restrict that key in Google Cloud to the Places API and this iOS bundle ID. That powers nearby shops and parks.
 5. Build and run on a simulator or device. Location features work best on a device.
 
 ## Requirements

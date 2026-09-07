@@ -55,7 +55,7 @@ struct HomeView: View {
                     .frame(height: 120)
                     .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
                     .padding(.top, 62)
-                    .accessibilityLabel("SpotFinder")
+                    .accessibilityLabel("Streetline")
                     .allowsHitTesting(false)
                 
                 Spacer(minLength: 0)

@@ -44,7 +44,7 @@ struct SignUp: View {
             GeometryReader { geo in
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack {
-                        SpotFinderLogoBadge(showsOutline: true)
+                        StreetlineLogoBadge(showsOutline: true)
                             .padding(.top, 36)
                         
                         Spacer(minLength: 16)

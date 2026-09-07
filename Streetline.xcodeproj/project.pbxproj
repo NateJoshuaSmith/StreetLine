@@ -14,16 +14,17 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		D885D4AA2ECF0C5800683727 /* SpotFinder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpotFinder.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D885D4AA2ECF0C5800683727 /* Streetline.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Streetline.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D8A11C012F80000100D7477F /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		D8E7D5E02F62133800D7477F /* Exceptions for "Streetline" folder in "SpotFinder" target */ = {
+		D8E7D5E02F62133800D7477F /* Exceptions for "Streetline" folder in "Streetline" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = D885D4A92ECF0C5800683727 /* SpotFinder */;
+			target = D885D4A92ECF0C5800683727 /* Streetline */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -31,7 +32,7 @@
 		D885D4AC2ECF0C5800683727 /* Streetline */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				D8E7D5E02F62133800D7477F /* Exceptions for "Streetline" folder in "SpotFinder" target */,
+				D8E7D5E02F62133800D7477F /* Exceptions for "Streetline" folder in "Streetline" target */,
 			);
 			path = Streetline;
 			sourceTree = "<group>";
@@ -56,6 +57,7 @@
 		D885D4A12ECF0C5800683727 = {
 			isa = PBXGroup;
 			children = (
+				D8A11C012F80000100D7477F /* Config.xcconfig */,
 				D885D4AC2ECF0C5800683727 /* Streetline */,
 				D885D4AB2ECF0C5800683727 /* Products */,
 			);
@@ -64,7 +66,7 @@
 		D885D4AB2ECF0C5800683727 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				D885D4AA2ECF0C5800683727 /* SpotFinder.app */,
+				D885D4AA2ECF0C5800683727 /* Streetline.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -72,9 +74,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		D885D4A92ECF0C5800683727 /* SpotFinder */ = {
+		D885D4A92ECF0C5800683727 /* Streetline */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = D885D4B52ECF0C5800683727 /* Build configuration list for PBXNativeTarget "SpotFinder" */;
+			buildConfigurationList = D885D4B52ECF0C5800683727 /* Build configuration list for PBXNativeTarget "Streetline" */;
 			buildPhases = (
 				D885D4A62ECF0C5800683727 /* Sources */,
 				D885D4A72ECF0C5800683727 /* Frameworks */,
@@ -87,15 +89,15 @@
 			fileSystemSynchronizedGroups = (
 				D885D4AC2ECF0C5800683727 /* Streetline */,
 			);
-			name = SpotFinder;
+			name = Streetline;
 			packageProductDependencies = (
 				D885D4D82ED0332300683727 /* FirebaseAuth */,
 				D885D4DA2ED0332300683727 /* FirebaseCore */,
 				D885D4DC2ED0332300683727 /* FirebaseFirestore */,
 				D885D4DE2ED0332300683727 /* FirebaseStorage */,
 			);
-			productName = SpotFinder;
-			productReference = D885D4AA2ECF0C5800683727 /* SpotFinder.app */;
+			productName = Streetline;
+			productReference = D885D4AA2ECF0C5800683727 /* Streetline.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -113,7 +115,7 @@
 					};
 				};
 			};
-			buildConfigurationList = D885D4A52ECF0C5800683727 /* Build configuration list for PBXProject "SpotFinder" */;
+			buildConfigurationList = D885D4A52ECF0C5800683727 /* Build configuration list for PBXProject "Streetline" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -130,7 +132,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				D885D4A92ECF0C5800683727 /* SpotFinder */,
+				D885D4A92ECF0C5800683727 /* Streetline */,
 			);
 		};
 /* End PBXProject section */
@@ -277,6 +279,7 @@
 		};
 		D885D4B62ECF0C5800683727 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D8A11C012F80000100D7477F /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -285,7 +288,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Streetline/Info.plist;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SpotFinder needs your location to show nearby skate spots and help you discover new places to skate.";
+				INFOPLIST_KEY_CFBundleDisplayName = Streetline;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Streetline needs your location to show nearby skate spots and help you discover new places to skate.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Streetline uses your photo library so you can add photos to skate spots and set a profile picture.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -296,7 +301,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Spotfinder.Spotfinder;
+				PRODUCT_BUNDLE_IDENTIFIER = Streetline.Streetline;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -310,6 +315,7 @@
 		};
 		D885D4B72ECF0C5800683727 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D8A11C012F80000100D7477F /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -318,7 +324,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Streetline/Info.plist;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SpotFinder needs your location to show nearby skate spots and help you discover new places to skate.";
+				INFOPLIST_KEY_CFBundleDisplayName = Streetline;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Streetline needs your location to show nearby skate spots and help you discover new places to skate.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Streetline uses your photo library so you can add photos to skate spots and set a profile picture.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -329,7 +337,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Spotfinder.Spotfinder;
+				PRODUCT_BUNDLE_IDENTIFIER = Streetline.Streetline;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -344,7 +352,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		D885D4A52ECF0C5800683727 /* Build configuration list for PBXProject "SpotFinder" */ = {
+		D885D4A52ECF0C5800683727 /* Build configuration list for PBXProject "Streetline" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D885D4B32ECF0C5800683727 /* Debug */,
@@ -353,7 +361,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D885D4B52ECF0C5800683727 /* Build configuration list for PBXNativeTarget "SpotFinder" */ = {
+		D885D4B52ECF0C5800683727 /* Build configuration list for PBXNativeTarget "Streetline" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D885D4B62ECF0C5800683727 /* Debug */,

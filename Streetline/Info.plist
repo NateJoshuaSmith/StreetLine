@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
 	<key>GooglePlacesAPIKey</key>
-	<string>AIzaSyDnHvs7XhK6610pt4UktfmyK6obkcCFoow</string>
+	<string>$(GOOGLE_PLACES_API_KEY)</string>
 </dict>
 </plist>

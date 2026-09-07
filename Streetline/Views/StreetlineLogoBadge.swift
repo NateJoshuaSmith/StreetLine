@@ -1,11 +1,11 @@
 //
-//  SpotFinderLogoBadge.swift
-//  SpotFinder
+//  StreetlineLogoBadge.swift
+//  Streetline
 //
 
 import SwiftUI
 
-struct SpotFinderLogoBadge: View {
+struct StreetlineLogoBadge: View {
     var size: CGFloat = 148
     var showsOutline: Bool = false
     
@@ -27,6 +27,6 @@ struct SpotFinderLogoBadge: View {
                 .frame(width: size, height: size)
         }
         .frame(width: size, height: size)
-        .accessibilityLabel("SpotFinder")
+        .accessibilityLabel("Streetline")
     }
 }

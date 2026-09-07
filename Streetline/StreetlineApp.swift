@@ -1,6 +1,6 @@
 //
-//  SpotFinderApp.swift
-//  SpotFinder
+//  StreetlineApp.swift
+//  Streetline
 //
 //  Created by Nathan Smith on 11/20/25.
 //
@@ -17,7 +17,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 }
 
 @main
-struct SpotFinderApp: App {
+struct StreetlineApp: App {
     // register app delegate for Firebase setup
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var viewModel = LoginViewModel()
@@ -26,7 +26,9 @@ struct SpotFinderApp: App {
     var body: some Scene {
         WindowGroup {
             NavigationView {
-                if viewModel.isLoggedIn {
+                if !viewModel.hasResolvedAuth {
+                    Color.black.ignoresSafeArea()
+                } else if viewModel.isLoggedIn {
                     if viewModel.needsUsernameSetup {
                         SetUsernameView()
                     } else {
@@ -40,6 +42,9 @@ struct SpotFinderApp: App {
             .background(Color.black.ignoresSafeArea())
             .environmentObject(viewModel)
             .environmentObject(activityService)
+            .task {
+                await viewModel.restoreSession()
+            }
             .onChange(of: viewModel.isLoggedIn) { _, isLoggedIn in
                 if isLoggedIn, !viewModel.needsUsernameSetup {
                     activityService.startListening()

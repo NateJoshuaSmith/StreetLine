@@ -7,9 +7,35 @@ class LoginViewModel: ObservableObject {
     @Published var isLoggedIn = false
     @Published var needsUsernameSetup = false  // For existing users without a profile
     @Published var avatarURL: String?          // Cached avatar URL for current user
+    /// False until Firebase has restored (or ruled out) a saved session. Avoids flashing Login.
+    @Published var hasResolvedAuth = false
     
     private let authService = AuthService()
     private let userService = UserService()
+    private var didRestoreSession = false
+    
+    /// Rehydrate from Firebase's saved session after a cold launch. Logout still requires Sign Out.
+    func restoreSession() async {
+        guard !didRestoreSession else { return }
+        didRestoreSession = true
+        
+        guard let uid = await authService.waitForInitialUserId() else {
+            await MainActor.run { hasResolvedAuth = true }
+            return
+        }
+        
+        let hasProfile = await userService.hasProfile(uid: uid)
+        let avatar = await userService.getCurrentAvatarURL()
+        await MainActor.run {
+            needsUsernameSetup = !hasProfile
+            avatarURL = avatar
+            isLoggedIn = true
+            hasResolvedAuth = true
+            if let email = authService.currentUserEmail {
+                print("Restored session as: \(email)")
+            }
+        }
+    }
 
     func login(email: String, password: String) async {
         do {
@@ -68,6 +94,21 @@ class LoginViewModel: ObservableObject {
             avatarURL = nil
         } catch {
             print("Error signing out: \(error)")
+        }
+    }
+    
+    /// Reauthenticate, delete Firestore/Storage data, then delete the Firebase Auth user.
+    func deleteAccount(currentPassword: String) async throws {
+        try await authService.reauthenticate(currentPassword: currentPassword)
+        try await userService.deleteAllAccountData()
+        try await authService.deleteCurrentUser()
+        UserService.clearFriendsListDisplayCache()
+        await MainActor.run {
+            isLoggedIn = false
+            needsUsernameSetup = false
+            avatarURL = nil
+            email = ""
+            password = ""
         }
     }
 }
