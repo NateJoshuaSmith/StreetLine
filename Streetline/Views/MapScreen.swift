@@ -4,12 +4,39 @@ import CoreLocation
 import UIKit
 import FirebaseAuth
 
+private enum NearbyPlaceKind {
+    case shop
+    case park
+    
+    var systemImage: String {
+        switch self {
+        case .shop: return "storefront.fill"
+        case .park: return "figure.skateboarding"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .shop: return .orange
+        case .park: return .green
+        }
+    }
+}
+
+private struct MapPlacePin: Identifiable, Equatable {
+    let place: NearbyPlace
+    let kind: NearbyPlaceKind
+    
+    var id: String { "\(kind)-\(place.id)" }
+}
+
 struct MapScreen: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var activityService: ActivityService
     @StateObject private var spotService = SpotService()
     @StateObject private var userService = UserService()
     @StateObject private var locationManager = LocationManager()
+    private let placesService = GooglePlacesService()
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
@@ -17,8 +44,11 @@ struct MapScreen: View {
         )
     )
     @State private var showAddSpotSheet = false
-    @State private var showSkateShopsSheet = false
-    @State private var showSkateParksSheet = false
+    @State private var showNearbyShops = false
+    @State private var showNearbyParks = false
+    @State private var nearbyShops: [NearbyPlace] = []
+    @State private var nearbyParks: [NearbyPlace] = []
+    @State private var selectedNearbyPlace: MapPlacePin?
     @State private var selectedLatitude: Double = 37.7749
     @State private var selectedLongitude: Double = -122.4194
     @State private var mapRegion: MKCoordinateRegion?
@@ -71,6 +101,22 @@ struct MapScreen: View {
     
     private var resolvedUserCoordinate: CLLocationCoordinate2D? {
         validUserCoordinate() ?? userCoordinateOverride
+    }
+    
+    private var placesSearchCoordinate: CLLocationCoordinate2D {
+        resolvedUserCoordinate
+            ?? CLLocationCoordinate2D(latitude: selectedLatitude, longitude: selectedLongitude)
+    }
+    
+    private var visibleMapPlaces: [MapPlacePin] {
+        var items: [MapPlacePin] = []
+        if showNearbyShops {
+            items += nearbyShops.map { MapPlacePin(place: $0, kind: .shop) }
+        }
+        if showNearbyParks {
+            items += nearbyParks.map { MapPlacePin(place: $0, kind: .park) }
+        }
+        return items
     }
     
     private var nearbySearchRadiusMeters: Double {
@@ -252,6 +298,7 @@ struct MapScreen: View {
         if Date() < suppressPinTapUntil {
             return
         }
+        selectedNearbyPlace = nil
         if selectedCalloutSpotId == spot.id {
             selectedSpot = spot
         } else {
@@ -334,6 +381,80 @@ struct MapScreen: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+    
+    private func nearbyPlacePin(_ pin: MapPlacePin) -> some View {
+        let selected = selectedNearbyPlace?.id == pin.id
+        return Button {
+            selectedCalloutSpotId = nil
+            if selectedNearbyPlace?.id == pin.id {
+                openDirections(for: pin.place)
+            } else {
+                selectedNearbyPlace = pin
+            }
+        } label: {
+            Image(systemName: pin.kind.systemImage)
+                .font(.caption.weight(.bold))
+                .foregroundColor(.white)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(pin.kind.color))
+                .overlay(Circle().stroke(Color.black, lineWidth: 2))
+                .scaleEffect(selected ? 1.12 : 1.0)
+                .shadow(color: .black.opacity(0.25), radius: selected ? 5 : 2, y: 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(pin.place.name)
+    }
+    
+    private func toggleNearbyShops() {
+        showNearbyShops.toggle()
+        if showNearbyShops {
+            Task { await loadNearbyShops() }
+        } else if selectedNearbyPlace?.kind == .shop {
+            selectedNearbyPlace = nil
+        }
+    }
+    
+    private func toggleNearbyParks() {
+        showNearbyParks.toggle()
+        if showNearbyParks {
+            Task { await loadNearbyParks() }
+        } else if selectedNearbyPlace?.kind == .park {
+            selectedNearbyPlace = nil
+        }
+    }
+    
+    private func loadNearbyShops() async {
+        let coord = placesSearchCoordinate
+        let result = await placesService.fetchNearbySkateShops(
+            latitude: coord.latitude,
+            longitude: coord.longitude,
+            radiusMeters: nearbySearchRadiusMeters
+        )
+        await MainActor.run { nearbyShops = result }
+    }
+    
+    private func loadNearbyParks() async {
+        let coord = placesSearchCoordinate
+        let result = await placesService.fetchNearbySkateParks(
+            latitude: coord.latitude,
+            longitude: coord.longitude,
+            radiusMeters: nearbySearchRadiusMeters
+        )
+        await MainActor.run { nearbyParks = result }
+    }
+    
+    private func reloadVisibleNearbyPlaces() async {
+        if showNearbyShops { await loadNearbyShops() }
+        if showNearbyParks { await loadNearbyParks() }
+    }
+    
+    private func openDirections(for place: NearbyPlace) {
+        let item = MKMapItem(location: CLLocation(latitude: place.latitude, longitude: place.longitude), address: nil)
+        item.name = place.name
+        item.openInMaps(launchOptions: [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
+        ])
     }
     
     @ViewBuilder
@@ -579,6 +700,56 @@ struct MapScreen: View {
         }
     }
     
+    private func nearbyPlaceCalloutOverlay(in geometry: GeometryProxy) -> some View {
+        Group {
+            if
+                let pin = selectedNearbyPlace,
+                let proxy = mapProxy,
+                let point = proxy.convert(pin.place.coordinate, to: .local)
+            {
+                let halfWidth: CGFloat = 124
+                let minX: CGFloat = halfWidth + 12
+                let maxX: CGFloat = geometry.size.width - halfWidth - 12
+                let x = min(max(point.x, minX), maxX)
+                let y = max(110, point.y - 120)
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(pin.place.name, systemImage: pin.kind.systemImage)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+                    if let address = pin.place.formattedAddress, !address.isEmpty {
+                        Text(address)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
+                    Button {
+                        openDirections(for: pin.place)
+                    } label: {
+                        Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                            .font(.caption.weight(.semibold))
+                    }
+                }
+                .padding(12)
+                .frame(width: 240, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.white.opacity(0.96))
+                        .shadow(color: .black.opacity(0.16), radius: 8, x: 0, y: 3)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                )
+                .position(x: x, y: y)
+                .zIndex(300)
+            } else {
+                EmptyView()
+            }
+        }
+    }
+    
     // Center indicator view
     private var centerIndicator: some View {
         VStack {
@@ -629,6 +800,12 @@ struct MapScreen: View {
             UserAnnotation {
                 userLocationDot
             }
+            ForEach(visibleMapPlaces) { pin in
+                Annotation(pin.place.name, coordinate: pin.place.coordinate) {
+                    nearbyPlacePin(pin)
+                }
+                .annotationTitles(.visible)
+            }
         }
         .mapStyle(.standard(elevation: .realistic))
         .mapControlVisibility(.hidden)
@@ -660,6 +837,9 @@ struct MapScreen: View {
                     if selectedCalloutSpotId != nil {
                         selectedCalloutSpotId = nil
                     }
+                    if selectedNearbyPlace != nil {
+                        selectedNearbyPlace = nil
+                    }
                 }
         )
     }
@@ -684,6 +864,7 @@ struct MapScreen: View {
             }
             
             selectedCalloutOverlay(in: geometry)
+            nearbyPlaceCalloutOverlay(in: geometry)
             
             centerIndicator
                 .allowsHitTesting(false)
@@ -720,12 +901,12 @@ struct MapScreen: View {
                         }
                     }
                     
-                    Button(action: { showSkateShopsSheet = true }) {
-                        mapToolbarIcon("storefront.fill")
+                    Button(action: toggleNearbyShops) {
+                        mapToolbarIcon("storefront.fill", color: .orange, isOn: showNearbyShops)
                     }
                     
-                    Button(action: { showSkateParksSheet = true }) {
-                        mapToolbarIcon("figure.skateboarding")
+                    Button(action: toggleNearbyParks) {
+                        mapToolbarIcon("figure.skateboarding", color: .green, isOn: showNearbyParks)
                     }
                     
                     NavigationLink(destination: FavoritesListView()) {
@@ -878,13 +1059,18 @@ struct MapScreen: View {
         )
     }
     
-    private func mapToolbarIcon(_ systemName: String, color: Color = .primary) -> some View {
+    private func mapToolbarIcon(_ systemName: String, color: Color = .primary, isOn: Bool = false) -> some View {
         Image(systemName: systemName)
             .font(.caption.weight(.semibold))
-            .foregroundColor(color)
+            .foregroundColor(isOn ? color : .primary)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(toolbarCapsule)
+            .background(
+                ZStack {
+                    Capsule().fill(isOn ? color.opacity(0.22) : Color.white.opacity(0.92))
+                    Capsule().strokeBorder(Color.black, lineWidth: 2.5)
+                }
+            )
             .padding(2)
     }
     
@@ -1046,20 +1232,6 @@ struct MapScreen: View {
                     Task { await userService.loadFavorites() }
                 }
         }
-        .sheet(isPresented: $showSkateShopsSheet) {
-            NearbySkateShopsView(
-                latitude: selectedLatitude,
-                longitude: selectedLongitude,
-                radiusMeters: nearbySearchRadiusMeters
-            )
-        }
-        .sheet(isPresented: $showSkateParksSheet) {
-            NearbySkateParksView(
-                latitude: selectedLatitude,
-                longitude: selectedLongitude,
-                radiusMeters: nearbySearchRadiusMeters
-            )
-        }
         .sheet(item: $streetViewTarget) { target in
             StreetViewSheet(coordinate: target.coordinate, title: target.name)
         }
@@ -1104,6 +1276,7 @@ struct MapScreen: View {
                !filteredSpots.contains(where: { $0.id == selectedId }) {
                 selectedCalloutSpotId = nil
             }
+            Task { await reloadVisibleNearbyPlaces() }
         }
         .onChange(of: selectedCalloutSpotId) { _, newId in
             if let id = newId {

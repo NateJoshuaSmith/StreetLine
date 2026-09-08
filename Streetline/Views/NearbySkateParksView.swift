@@ -16,30 +16,14 @@ struct NearbySkateParksView: View {
     
     @Environment(\.dismiss) var dismiss
     
-    // Google Places skate parks
     @State private var places: [NearbyPlace] = []
     @State private var isLoadingParks = true
     
-    // User-created pins
-    @State private var userSpots: [SkateSpot] = []
-    @State private var isLoadingUserSpots = true
-    
-    // Tab selection between parks vs user pins
-    private enum ParksTab: String, CaseIterable, Identifiable {
-        case parks = "Skate Parks"
-        case userPins = "User Pins"
-        
-        var id: String { rawValue }
-    }
-    @State private var selectedTab: ParksTab = .parks
-    
     private let placesService = GooglePlacesService()
-    private let spotService = SpotService()
     
     var body: some View {
         NavigationView {
             ZStack {
-                // Light blue gradient background (no dark overlay)
                 LinearGradient(
                     colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.05)],
                     startPoint: .topLeading,
@@ -47,71 +31,35 @@ struct NearbySkateParksView: View {
                 )
                 .ignoresSafeArea()
                 
-                VStack(spacing: 16) {
-                    Picker("Nearby type", selection: $selectedTab) {
-                        ForEach(ParksTab.allCases) { tab in
-                            Text(tab.rawValue).tag(tab)
+                Group {
+                    if isLoadingParks {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                            Text("Finding skate parks nearby…")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
                         }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                    
-                    Group {
-                        switch selectedTab {
-                        case .parks:
-                            if isLoadingParks {
-                                VStack(spacing: 16) {
-                                    ProgressView()
-                                        .scaleEffect(1.2)
-                                    Text("Finding skate parks nearby…")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            } else if places.isEmpty {
-                                EmptyStateCard(
-                                    title: "No skate parks nearby",
-                                    systemImage: "sportscourt",
-                                    message: "Try moving the map to another area."
-                                )
-                            } else {
-                                List(places) { place in
-                                    SkateParkRow(place: place)
-                                }
-                                .scrollContentBackground(.hidden)
-                            }
-                            
-                        case .userPins:
-                            if isLoadingUserSpots {
-                                VStack(spacing: 16) {
-                                    ProgressView()
-                                        .scaleEffect(1.2)
-                                    Text("Finding user pins nearby…")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            } else if userSpots.isEmpty {
-                                EmptyStateCard(
-                                    title: "No user pins nearby",
-                                    systemImage: "mappin.and.ellipse",
-                                    message: "Try another area, or add a spot on the map."
-                                )
-                            } else {
-                                List(userSpots) { spot in
-                                    UserSpotRow(spot: spot)
-                                }
-                                .scrollContentBackground(.hidden)
-                            }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if places.isEmpty {
+                        EmptyStateCard(
+                            title: "No skate parks nearby",
+                            systemImage: "sportscourt",
+                            message: "Try moving the map to another area."
+                        )
+                    } else {
+                        List(places) { place in
+                            SkateParkRow(place: place)
                         }
+                        .scrollContentBackground(.hidden)
                     }
                 }
             }
-            .navigationTitle("") // custom styled title bubble like Settings
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("Skate Parks & User Pins Nearby")
+                    Text("Skate Parks Nearby")
                         .font(.headline)
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
@@ -119,7 +67,7 @@ struct NearbySkateParksView: View {
                         .padding(.vertical, 8)
                         .background(
                             Capsule()
-                                .fill(Color.white.opacity(0.95)) // brighter bubble
+                                .fill(Color.white.opacity(0.95))
                         )
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -130,7 +78,6 @@ struct NearbySkateParksView: View {
             }
             .task {
                 await loadParks()
-                await loadUserSpots()
             }
         }
     }
@@ -147,28 +94,8 @@ struct NearbySkateParksView: View {
             isLoadingParks = false
         }
     }
-    
-    private func loadUserSpots() async {
-        isLoadingUserSpots = true
-        await spotService.fetchSpots()
-        
-        let center = CLLocation(latitude: latitude, longitude: longitude)
-        let allSpots = spotService.spots
-        
-        let nearby = allSpots.filter { spot in
-            let spotLocation = CLLocation(latitude: spot.latitude, longitude: spot.longitude)
-            let distance = spotLocation.distance(from: center) // meters
-            return distance <= radiusMeters
-        }
-        
-        await MainActor.run {
-            userSpots = nearby
-            isLoadingUserSpots = false
-        }
-    }
 }
 
-// MARK: - Row with name, address, and Directions button
 private struct SkateParkRow: View {
     let place: NearbyPlace
     
@@ -197,40 +124,6 @@ private struct SkateParkRow: View {
         let item = MKMapItem(location: location, address: nil)
         item.name = place.name
         item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
-    }
-}
-
-// MARK: - Row for user-created spots
-private struct UserSpotRow: View {
-    let spot: SkateSpot
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(spot.name)
-                .font(.headline)
-                .foregroundColor(.primary)
-            if !spot.comment.isEmpty {
-                Text(spot.comment)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            Button(action: openInMaps) {
-                Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-                    .font(.subheadline.weight(.medium))
-            }
-            .padding(.top, 4)
-        }
-        .padding(.vertical, 4)
-    }
-    
-    private func openInMaps() {
-        let coordinate = CLLocationCoordinate2D(latitude: spot.latitude, longitude: spot.longitude)
-        let placemark = MKPlacemark(coordinate: coordinate)
-        let mapItem = MKMapItem(placemark: placemark)
-        mapItem.name = spot.name
-        mapItem.openInMaps(launchOptions: [
-            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
-        ])
     }
 }
 

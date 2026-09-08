@@ -10,7 +10,7 @@ import Foundation
 import CoreLocation
 
 // MARK: - Nearby place (e.g. skate shop) for list + directions
-struct NearbyPlace: Identifiable {
+struct NearbyPlace: Identifiable, Equatable {
     let id: String
     let name: String
     let formattedAddress: String?
