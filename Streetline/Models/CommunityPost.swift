@@ -22,6 +22,9 @@ struct CommunityPost: Identifiable, Codable {
     var spotName: String?
     /// Custom place if they didn't pick a map spot.
     var locationText: String?
+    /// Saved so Skate With can filter by nearby radius.
+    var latitude: Double?
+    var longitude: Double?
     /// Hidden after this time (session time + 24 hours).
     var expiresAt: Date?
     
@@ -40,6 +43,8 @@ struct CommunityPost: Identifiable, Codable {
         spotId: String? = nil,
         spotName: String? = nil,
         locationText: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
         expiresAt: Date? = nil
     ) {
         self.id = id
@@ -52,6 +57,8 @@ struct CommunityPost: Identifiable, Codable {
         self.spotId = spotId
         self.spotName = spotName
         self.locationText = locationText
+        self.latitude = latitude
+        self.longitude = longitude
         self.expiresAt = expiresAt
     }
     

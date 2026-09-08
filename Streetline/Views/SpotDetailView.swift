@@ -270,17 +270,14 @@ struct SpotDetailView: View {
                 }
             }
         } else {
-            Group {
+            VStack(spacing: 10) {
+                ApplePlacePhotoView(
+                    coordinate: CLLocationCoordinate2D(latitude: spot.latitude, longitude: spot.longitude),
+                    height: 200
+                )
                 if isOwner {
                     Button(action: { showPhotoPickerSheet = true }) {
-                        placeholderPhotoView
-                            .overlay(isUploadingPhoto ? ProgressView() : nil)
-                    }
-                    .buttonStyle(.plain)
-                    .contentShape(Rectangle())
-                    .disabled(isUploadingPhoto)
-                    Button(action: { showPhotoPickerSheet = true }) {
-                        Label("Add photo", systemImage: "photo.badge.plus")
+                        Label(isUploadingPhoto ? "Uploading…" : "Add your own photo", systemImage: "photo.badge.plus")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
@@ -289,8 +286,6 @@ struct SpotDetailView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(isUploadingPhoto)
-                } else {
-                    placeholderPhotoView
                 }
             }
             .padding(.horizontal)

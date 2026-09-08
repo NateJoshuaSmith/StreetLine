@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PhotosUI
+import MapKit
 
 struct AddSpotView: View {
     @Environment(\.dismiss) var dismiss
@@ -20,6 +21,7 @@ struct AddSpotView: View {
     @State private var isSaving: Bool = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedImageData: Data?
+    @State private var applePlacePreview: UIImage?
     
     // Tag / difficulty / fun level options
     private let allTags = ["Street", "Park", "DIY", "Ledge", "Rail", "Hubba", "Bowl", "Red Curb"]
@@ -57,16 +59,31 @@ struct AddSpotView: View {
                                                 .frame(height: 160)
                                                 .frame(maxWidth: .infinity)
                                                 .clipped()
+                                        } else if let applePlacePreview {
+                                            Image(uiImage: applePlacePreview)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(height: 160)
+                                                .frame(maxWidth: .infinity)
+                                                .clipped()
+                                                .overlay(alignment: .bottom) {
+                                                    Text("Apple Look Around · tap to replace")
+                                                        .font(.caption2.weight(.semibold))
+                                                        .foregroundColor(.white)
+                                                        .padding(.horizontal, 8)
+                                                        .padding(.vertical, 4)
+                                                        .background(Color.black.opacity(0.55))
+                                                        .clipShape(Capsule())
+                                                        .padding(8)
+                                                }
                                         } else {
                                             Rectangle()
                                                 .fill(Color(.systemGray5))
                                                 .frame(height: 160)
                                                 .overlay(
                                                     VStack(spacing: 8) {
-                                                        Image(systemName: "photo.badge.plus")
-                                                            .font(.system(size: 36))
-                                                            .foregroundColor(.secondary)
-                                                        Text("Add a photo of the spot")
+                                                        ProgressView()
+                                                        Text("Loading Apple place photo…")
                                                             .font(.subheadline)
                                                             .foregroundColor(.secondary)
                                                     }
@@ -229,6 +246,11 @@ struct AddSpotView: View {
                     .foregroundColor(.blue)
                 }
             }
+            .task {
+                applePlacePreview = await ApplePlaceImageLoader.image(
+                    for: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+                )
+            }
         }
     }
     
@@ -258,6 +280,8 @@ struct AddSpotView: View {
             var imageURL: String?
             if let data = selectedImageData, !data.isEmpty {
                 imageURL = try await spotService.uploadSpotImage(data: data)
+            } else if let appleData = applePlacePreview?.jpegData(compressionQuality: 0.78) {
+                imageURL = try await spotService.uploadSpotImage(data: appleData)
             }
             try await spotService.addSpot(
                 name: spotName,

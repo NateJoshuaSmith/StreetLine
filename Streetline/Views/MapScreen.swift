@@ -32,6 +32,10 @@ struct MapScreen: View {
     @State private var calloutRatingSummary: SpotService.SpotRatingSummary?
     @State private var isLoadingCalloutRating = false
     @State private var hasCenteredOnUserLocation = false
+    @State private var shouldCenterOnUserWhenAvailable = false
+    @State private var userCoordinateOverride: CLLocationCoordinate2D?
+    @State private var recenterNonce = 0
+    @State private var recenterToken = 0
     @State private var isLoadingSpots = true
     /// After finishing a drag, ignore pin taps briefly so the callout doesn’t open from touch-up.
     @State private var suppressPinTapUntil: Date = .distantPast
@@ -43,10 +47,37 @@ struct MapScreen: View {
     @State private var selectedTagFilter: String? = nil
     @State private var selectedDifficultyFilter: String? = nil
     @State private var selectedStatusFilter: String? = nil
+    /// Miles from the user. `0` shows every spot.
+    @AppStorage("mapNearbyRadiusMiles") private var nearbyRadiusMiles: Double = 10
     
     private let allTags = ["Street", "Park", "DIY", "Ledge", "Rail", "Hubba", "Bowl", "Red Curb"]
     private let allDifficulties = ["Beginner", "Intermediate", "Advanced"]
     private let allFunLevels = ["Not fun but skateable", "Fun", "Super Fun"]
+    private let nearbyRadiusChoices: [(label: String, miles: Double)] = [
+        ("2 mi", 2),
+        ("5 mi", 5),
+        ("10 mi", 10),
+        ("25 mi", 25),
+        ("All", 0)
+    ]
+    private let metersPerMile = 1609.34
+    /// About 1.5 miles across. The mile filter only hides pins; it does not change this.
+    private let centerViewMeters: Double = 2_400
+    
+    private var nearbyRadiusLabel: String {
+        nearbyRadiusMiles > 0 ? "\(Int(nearbyRadiusMiles)) mi" : "All"
+    }
+    
+    private var resolvedUserCoordinate: CLLocationCoordinate2D? {
+        validUserCoordinate() ?? userCoordinateOverride
+    }
+    
+    private var nearbySearchRadiusMeters: Double {
+        if nearbyRadiusMiles > 0 {
+            return nearbyRadiusMiles * metersPerMile
+        }
+        return 50_000
+    }
     
     private var filteredSpots: [SkateSpot] {
         spotService.spots.filter { spot in
@@ -59,6 +90,12 @@ struct MapScreen: View {
             }
             if let funLevel = selectedStatusFilter {
                 if spot.status != funLevel { return false }
+            }
+            if nearbyRadiusMiles > 0, let origin = locationManager.location {
+                let spotLocation = CLLocation(latitude: spot.latitude, longitude: spot.longitude)
+                if origin.distance(from: spotLocation) > nearbyRadiusMiles * metersPerMile {
+                    return false
+                }
             }
             return true
         }
@@ -96,6 +133,32 @@ struct MapScreen: View {
     
     private func pinAssetName(for _: SkateSpot) -> String {
         "SkateboardIcon"
+    }
+    
+    private var userLocationDot: some View {
+        VStack(spacing: 3) {
+            ZStack {
+                Circle()
+                    .fill(Color.blue.opacity(0.22))
+                    .frame(width: 56, height: 56)
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 22, height: 22)
+                Circle()
+                    .fill(Color.blue)
+                    .frame(width: 14, height: 14)
+                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+            }
+            Text("You")
+                .font(.caption2.weight(.heavy))
+                .foregroundColor(.white)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.blue))
+        }
+        .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+        .allowsHitTesting(false)
+        .accessibilityLabel("Your location")
     }
 
     // Loading indicator view
@@ -303,11 +366,12 @@ struct MapScreen: View {
                     }
                 }
             } else {
-                Image(pinAssetName(for: spot))
-                    .resizable()
-                    .scaledToFit()
-                    .padding(8)
-                    .opacity(0.45)
+                ApplePlacePhotoView(
+                    coordinate: CLLocationCoordinate2D(latitude: spot.latitude, longitude: spot.longitude),
+                    width: size,
+                    height: size,
+                    cornerRadius: 10
+                )
             }
         }
         .frame(width: size, height: size)
@@ -539,6 +603,11 @@ struct MapScreen: View {
     @ViewBuilder
     private func mapView(geometry: GeometryProxy, proxy: MapProxy) -> some View {
         Map(position: $cameraPosition) {
+            if nearbyRadiusMiles > 0, let origin = resolvedUserCoordinate {
+                MapCircle(center: origin, radius: nearbyRadiusMiles * metersPerMile)
+                    .foregroundStyle(Color.blue.opacity(0.08))
+                    .stroke(Color.blue.opacity(0.4), lineWidth: 1.5)
+            }
             ForEach(orderedSpotsForRendering) { spot in
                 Annotation(spot.name, coordinate: CLLocationCoordinate2D(latitude: spot.latitude, longitude: spot.longitude)) {
                     VStack(spacing: 6) {
@@ -555,6 +624,9 @@ struct MapScreen: View {
                     .zIndex(selectedCalloutSpotId == spot.id ? 1000 : 0)
                 }
                 .annotationTitles(.visible)
+            }
+            UserAnnotation {
+                userLocationDot
             }
         }
         .mapStyle(.standard(elevation: .realistic))
@@ -602,10 +674,18 @@ struct MapScreen: View {
             MapReader { proxy in
                 mapView(geometry: geometry, proxy: proxy)
             }
+            .background {
+                MapKitRecenterHook(
+                    token: recenterToken,
+                    fallbackCoordinate: validUserCoordinate(),
+                    viewMeters: centerViewMeters
+                )
+            }
             
             selectedCalloutOverlay(in: geometry)
             
             centerIndicator
+                .allowsHitTesting(false)
             
             VStack(spacing: 10) {
                 HStack(alignment: .top, spacing: 8) {
@@ -653,6 +733,23 @@ struct MapScreen: View {
                 }
                 
                 Spacer()
+                    .allowsHitTesting(false)
+                
+                HStack {
+                    Spacer()
+                        .allowsHitTesting(false)
+                    Button(action: centerOnUserLocation) {
+                        Image(systemName: "location.fill")
+                            .font(.body.weight(.semibold))
+                            .foregroundColor(.blue)
+                            .frame(width: 44, height: 44)
+                            .background(toolbarCapsule)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Center on my location")
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 28)
             }
             .padding(.top, 4)
             .zIndex(90)
@@ -729,6 +826,35 @@ struct MapScreen: View {
                         .overlay(Capsule().stroke(Color.black, lineWidth: 1.5))
                 }
             }
+            
+            Menu {
+                ForEach(nearbyRadiusChoices, id: \.miles) { choice in
+                    Button {
+                        nearbyRadiusMiles = choice.miles
+                    } label: {
+                        if nearbyRadiusMiles == choice.miles {
+                            Label(choice.label, systemImage: "checkmark")
+                        } else {
+                            Text(choice.label)
+                        }
+                    }
+                }
+            } label: {
+                Label(nearbyRadiusLabel, systemImage: "location.circle")
+                    .font(.caption2.weight(.medium))
+                    .foregroundColor(nearbyRadiusMiles > 0 ? .orange : .primary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        Capsule().fill(
+                            nearbyRadiusMiles > 0
+                                ? Color.orange.opacity(0.18)
+                                : Color(.systemGray5)
+                        )
+                    )
+                    .overlay(Capsule().stroke(Color.black, lineWidth: 1.5))
+            }
         }
         .padding(6)
         .background(
@@ -788,16 +914,11 @@ struct MapScreen: View {
         Task { await userService.loadFavorites() }
         if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
             locationManager.startLocationUpdates()
-            if let userLocation = locationManager.location, !hasCenteredOnUserLocation {
-                let lat = userLocation.coordinate.latitude
-                let lon = userLocation.coordinate.longitude
-                if lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 && (lat != 0 || lon != 0) {
-                    cameraPosition = .region(MKCoordinateRegion(
-                        center: userLocation.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-                    ))
-                    hasCenteredOnUserLocation = true
-                }
+            if let userLocation = locationManager.location, !hasCenteredOnUserLocation,
+               isValidCoordinate(userLocation.coordinate) {
+                userCoordinateOverride = userLocation.coordinate
+                hasCenteredOnUserLocation = true
+                recenterToken += 1
             }
         } else {
             locationManager.requestLocationPermission()
@@ -820,16 +941,73 @@ struct MapScreen: View {
     
     // Handle location change
     private func handleLocationChange(newLocation: CLLocation?) {
-        guard let userLocation = newLocation, !hasCenteredOnUserLocation else { return }
-        let lat = userLocation.coordinate.latitude
-        let lon = userLocation.coordinate.longitude
-        if lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 && (lat != 0 || lon != 0) {
-            cameraPosition = .region(MKCoordinateRegion(
-                center: userLocation.coordinate,
-                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-            ))
-            hasCenteredOnUserLocation = true
+        guard let userLocation = newLocation, isValidCoordinate(userLocation.coordinate) else { return }
+        userCoordinateOverride = userLocation.coordinate
+        guard !hasCenteredOnUserLocation || shouldCenterOnUserWhenAvailable else { return }
+        hasCenteredOnUserLocation = true
+        shouldCenterOnUserWhenAvailable = false
+        recenterToken += 1
+    }
+    
+    private func applyNearbyCamera(to coordinate: CLLocationCoordinate2D) {
+        moveCamera(to: coordinate)
+    }
+    
+    private func moveCamera(to coordinate: CLLocationCoordinate2D) {
+        recenterNonce += 1
+        // Each tap needs a slightly different region or SwiftUI Map ignores the update.
+        let meters = centerViewMeters + Double(recenterNonce)
+        let region = MKCoordinateRegion(
+            center: coordinate,
+            latitudinalMeters: meters,
+            longitudinalMeters: meters
+        )
+        withAnimation(.easeInOut(duration: 0.35)) {
+            cameraPosition = .region(region)
         }
+    }
+    
+    private func isValidCoordinate(_ coordinate: CLLocationCoordinate2D) -> Bool {
+        let lat = coordinate.latitude
+        let lon = coordinate.longitude
+        return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 && (lat != 0 || lon != 0)
+    }
+    
+    private func validUserCoordinate() -> CLLocationCoordinate2D? {
+        if let coordinate = locationManager.location?.coordinate, isValidCoordinate(coordinate) {
+            return coordinate
+        }
+        if let coordinate = userCoordinateOverride, isValidCoordinate(coordinate) {
+            return coordinate
+        }
+        return nil
+    }
+    
+    private func centerOnUserLocation() {
+        if locationManager.authorizationStatus == .authorizedWhenInUse
+            || locationManager.authorizationStatus == .authorizedAlways {
+            locationManager.startLocationUpdates()
+        } else {
+            locationManager.requestLocationPermission()
+        }
+        if let coordinate = validUserCoordinate() {
+            userCoordinateOverride = coordinate
+            hasCenteredOnUserLocation = true
+            shouldCenterOnUserWhenAvailable = false
+            recenterToken += 1
+            return
+        }
+        shouldCenterOnUserWhenAvailable = true
+    }
+    
+    private func regionForNearbyRadius(around coordinate: CLLocationCoordinate2D) -> MKCoordinateRegion {
+        let miles = nearbyRadiusMiles > 0 ? nearbyRadiusMiles : 10
+        let meters = miles * metersPerMile
+        let latDelta = max((meters * 2.3) / 111_000.0, 0.012)
+        return MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: latDelta)
+        )
     }
     
     var body: some View {
@@ -855,14 +1033,14 @@ struct MapScreen: View {
             NearbySkateShopsView(
                 latitude: selectedLatitude,
                 longitude: selectedLongitude,
-                radiusMeters: 10000
+                radiusMeters: nearbySearchRadiusMeters
             )
         }
         .sheet(isPresented: $showSkateParksSheet) {
             NearbySkateParksView(
                 latitude: selectedLatitude,
                 longitude: selectedLongitude,
-                radiusMeters: 10000
+                radiusMeters: nearbySearchRadiusMeters
             )
         }
         .sheet(item: $streetViewTarget) { target in
@@ -883,6 +1061,12 @@ struct MapScreen: View {
         .onChange(of: locationManager.location) { oldLocation, newLocation in
             handleLocationChange(newLocation: newLocation)
         }
+        .onChange(of: nearbyRadiusMiles) { _, _ in
+            if let selectedId = selectedCalloutSpotId,
+               !filteredSpots.contains(where: { $0.id == selectedId }) {
+                selectedCalloutSpotId = nil
+            }
+        }
         .onChange(of: selectedCalloutSpotId) { _, newId in
             if let id = newId {
                 calloutRatingSummary = nil
@@ -898,6 +1082,73 @@ struct MapScreen: View {
                 Task { await loadCalloutRating(for: id, showLoadingIndicator: false) }
             }
         }
+    }
+}
+
+private struct MapKitRecenterHook: UIViewRepresentable {
+    let token: Int
+    let fallbackCoordinate: CLLocationCoordinate2D?
+    let viewMeters: CLLocationDistance
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+    
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {
+        guard token > 0, token != context.coordinator.lastToken else { return }
+        context.coordinator.lastToken = token
+        
+        func recenter() {
+            guard let mapView = uiView.window?.streetline_findMapView() else { return }
+            mapView.showsUserLocation = true
+            let coordinate = mapView.userLocation.location?.coordinate ?? fallbackCoordinate
+            if let coordinate, CLLocationCoordinate2DIsValid(coordinate),
+               abs(coordinate.latitude) > 0.0001 || abs(coordinate.longitude) > 0.0001 {
+                mapView.setUserTrackingMode(.none, animated: false)
+                mapView.setRegion(
+                    MKCoordinateRegion(
+                        center: coordinate,
+                        latitudinalMeters: viewMeters,
+                        longitudinalMeters: viewMeters
+                    ),
+                    animated: true
+                )
+            } else {
+                mapView.setUserTrackingMode(.follow, animated: true)
+            }
+        }
+        
+        DispatchQueue.main.async {
+            recenter()
+            if uiView.window?.streetline_findMapView() == nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: recenter)
+            }
+        }
+    }
+    
+    final class Coordinator {
+        var lastToken = 0
+    }
+}
+
+private extension UIView {
+    func streetline_findMapView() -> MKMapView? {
+        if let mapView = self as? MKMapView {
+            return mapView
+        }
+        for child in subviews {
+            if let mapView = child.streetline_findMapView() {
+                return mapView
+            }
+        }
+        return nil
     }
 }
 

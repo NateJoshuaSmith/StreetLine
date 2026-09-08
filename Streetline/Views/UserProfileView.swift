@@ -84,6 +84,15 @@ struct UserProfileView: View {
                             .font(.footnote.weight(.semibold))
                             .foregroundColor(.blue)
                     }
+                    
+                    if displayProfile.hasSkateDetails {
+                        skateDetailsCard
+                    } else if isCurrentUser {
+                        Text("Add age, skill, and favorites in Settings → Skate profile")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
                 .padding(.horizontal)
                 
@@ -246,6 +255,47 @@ struct UserProfileView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("They won't be able to message you, and you won't see their posts or comments.")
+        }
+    }
+    
+    private var skateDetailsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let age = displayProfile.age {
+                detailRow(title: "Age", value: "\(age)")
+            }
+            if let skill = displayProfile.skillLevel, !skill.isEmpty {
+                detailRow(title: "Skill", value: skill)
+            }
+            if let trick = displayProfile.favoriteTrick, !trick.isEmpty {
+                detailRow(title: "Favorite trick", value: trick)
+            }
+            if let skater = displayProfile.favoriteSkater, !skater.isEmpty {
+                detailRow(title: "Favorite skater", value: skater)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: 360, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.95))
+                .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.black.opacity(0.1), lineWidth: 1)
+        )
+    }
+    
+    private func detailRow(title: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.secondary)
+            Spacer(minLength: 8)
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.trailing)
         }
     }
     

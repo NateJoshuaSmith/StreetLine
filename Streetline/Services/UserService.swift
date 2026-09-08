@@ -100,6 +100,46 @@ class UserService: ObservableObject {
         try await db.collection(collectionName).document(uid).setData(data)
     }
     
+    /// Update optional skate-profile details shown on the public profile.
+    func updateSkateDetails(
+        age: Int?,
+        skillLevel: String?,
+        favoriteTrick: String?,
+        favoriteSkater: String?
+    ) async throws {
+        guard let uid = authService.currentUserId else {
+            throw NSError(domain: "UserService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
+        }
+        if let age, (age < 13 || age > 99) {
+            throw NSError(domain: "UserService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Age must be between 13 and 99"])
+        }
+        let trick = favoriteTrick?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let skater = favoriteSkater?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let skill = skillLevel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trick.count > 40 {
+            throw NSError(domain: "UserService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Favorite trick must be 40 characters or less"])
+        }
+        if skater.count > 40 {
+            throw NSError(domain: "UserService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Favorite skater must be 40 characters or less"])
+        }
+        
+        func value(_ text: String) -> Any {
+            text.isEmpty ? FieldValue.delete() : text
+        }
+        
+        var data: [String: Any] = [
+            "skillLevel": value(skill),
+            "favoriteTrick": value(trick),
+            "favoriteSkater": value(skater)
+        ]
+        if let age {
+            data["age"] = age
+        } else {
+            data["age"] = FieldValue.delete()
+        }
+        try await db.collection(collectionName).document(uid).setData(data, merge: true)
+    }
+    
     /// Fetch user profile by UID
     func getProfile(uid: String, source: FirestoreSource = .default) async throws -> UserProfile? {
         let document = try await db.collection(collectionName).document(uid).getDocument(source: source)

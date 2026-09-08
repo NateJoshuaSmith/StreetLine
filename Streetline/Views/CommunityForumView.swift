@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import CoreLocation
 import FirebaseAuth
 
 struct CommunityForumView: View {
     @StateObject private var communityService = CommunityService()
+    @StateObject private var locationManager = LocationManager()
+    @StateObject private var spotService = SpotService()
     @State private var posts: [CommunityPost] = []
     @State private var isShowingComposer = false
     @State private var loadError: String?
@@ -17,11 +20,33 @@ struct CommunityForumView: View {
     @State private var postToReport: CommunityPost?
     @State private var userToBlock: (uid: String, username: String)?
     @StateObject private var userService = UserService()
+    @AppStorage("mapNearbyRadiusMiles") private var nearbyRadiusMiles: Double = 10
+    
+    private let nearbyRadiusChoices: [(label: String, miles: Double)] = [
+        ("2 mi", 2),
+        ("5 mi", 5),
+        ("10 mi", 10),
+        ("25 mi", 25),
+        ("All", 0)
+    ]
+    private let metersPerMile = 1609.34
+    
+    private var nearbyRadiusLabel: String {
+        nearbyRadiusMiles > 0 ? "\(Int(nearbyRadiusMiles)) mi" : "All"
+    }
+    
+    private var unblockedPosts: [CommunityPost] {
+        posts.filter { !$0.isExpired && !UserService.isUserBlocked($0.createdBy) }
+    }
     
     private var visiblePosts: [CommunityPost] {
-        posts
-            .filter { !$0.isExpired && !UserService.isUserBlocked($0.createdBy) }
+        unblockedPosts
+            .filter { isWithinNearbyRadius($0) }
             .sorted { $0.displayWhen < $1.displayWhen }
+    }
+    
+    private var hasPostsOutsideRadius: Bool {
+        !unblockedPosts.isEmpty && visiblePosts.isEmpty
     }
     
     private var currentUid: String? {
@@ -49,10 +74,27 @@ struct CommunityForumView: View {
                     .background(Capsule().fill(Color.white.opacity(0.95)))
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    isShowingComposer = true
-                } label: {
-                    Image(systemName: "plus.bubble.fill")
+                HStack(spacing: 12) {
+                    Menu {
+                        ForEach(nearbyRadiusChoices, id: \.miles) { choice in
+                            Button {
+                                nearbyRadiusMiles = choice.miles
+                            } label: {
+                                if nearbyRadiusMiles == choice.miles {
+                                    Label(choice.label, systemImage: "checkmark")
+                                } else {
+                                    Text(choice.label)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label(nearbyRadiusLabel, systemImage: "location.circle")
+                    }
+                    Button {
+                        isShowingComposer = true
+                    } label: {
+                        Image(systemName: "plus.bubble.fill")
+                    }
                 }
             }
         }
@@ -69,7 +111,14 @@ struct CommunityForumView: View {
         }
         .task {
             await userService.loadBlockedUsers()
+            await spotService.fetchSpots()
+            startLocationUpdates()
             startListening()
+        }
+        .onChange(of: locationManager.authorizationStatus) { _, newStatus in
+            if newStatus == .authorizedWhenInUse || newStatus == .authorizedAlways {
+                locationManager.startLocationUpdates()
+            }
         }
         .sheet(isPresented: Binding(
             get: { postToReport != nil },
@@ -128,9 +177,11 @@ struct CommunityForumView: View {
             )
         } else if visiblePosts.isEmpty {
             bubbleStateCard(
-                title: "No one's looking yet",
+                title: hasPostsOutsideRadius ? "No sessions nearby" : "No one's looking yet",
                 systemImage: "person.3.sequence.fill",
-                message: "Tap the + button to post when and where you're skating."
+                message: hasPostsOutsideRadius
+                    ? "Widen the distance filter or post one close by."
+                    : "Tap the + button to post when and where you're skating."
             )
         } else {
             ScrollView {
@@ -217,6 +268,33 @@ struct CommunityForumView: View {
         EmptyStateCard(title: title, systemImage: systemImage, message: message)
     }
     
+    private func startLocationUpdates() {
+        if locationManager.authorizationStatus == .authorizedWhenInUse
+            || locationManager.authorizationStatus == .authorizedAlways {
+            locationManager.startLocationUpdates()
+        } else {
+            locationManager.requestLocationPermission()
+        }
+    }
+    
+    private func isWithinNearbyRadius(_ post: CommunityPost) -> Bool {
+        guard nearbyRadiusMiles > 0 else { return true }
+        guard let origin = locationManager.location else { return true }
+        guard let postLocation = location(for: post) else { return false }
+        return origin.distance(from: postLocation) <= nearbyRadiusMiles * metersPerMile
+    }
+    
+    private func location(for post: CommunityPost) -> CLLocation? {
+        if let latitude = post.latitude, let longitude = post.longitude {
+            return CLLocation(latitude: latitude, longitude: longitude)
+        }
+        if let spotId = post.spotId,
+           let spot = spotService.spots.first(where: { $0.id == spotId }) {
+            return CLLocation(latitude: spot.latitude, longitude: spot.longitude)
+        }
+        return nil
+    }
+    
     private func startListening() {
         removeListener?()
         removeListener = communityService.listenToPosts(
@@ -259,6 +337,7 @@ struct SkateWithComposerView: View {
     
     @Environment(\.dismiss) private var dismiss
     @StateObject private var spotService = SpotService()
+    @StateObject private var locationManager = LocationManager()
     @State private var sessionAt = SkateWithComposerView.defaultSessionTime()
     @State private var sessionWhat = "Street"
     @State private var selectedSpotId: String?
@@ -266,6 +345,19 @@ struct SkateWithComposerView: View {
     @State private var details = ""
     @State private var isSubmitting = false
     @State private var submitError: String?
+    @AppStorage("mapNearbyRadiusMiles") private var nearbyRadiusMiles: Double = 10
+    
+    private let metersPerMile = 1609.34
+    
+    private var nearbySpots: [SkateSpot] {
+        guard nearbyRadiusMiles > 0, let origin = locationManager.location else {
+            return spotService.spots
+        }
+        return spotService.spots.filter { spot in
+            let spotLocation = CLLocation(latitude: spot.latitude, longitude: spot.longitude)
+            return origin.distance(from: spotLocation) <= nearbyRadiusMiles * metersPerMile
+        }
+    }
     
     private var selectedSpot: SkateSpot? {
         spotService.spots.first { $0.id == selectedSpotId }
@@ -294,7 +386,7 @@ struct SkateWithComposerView: View {
                 Section("Where") {
                     Picker("Spot", selection: $selectedSpotId) {
                         Text("Type a place instead").tag(Optional<String>.none)
-                        ForEach(spotService.spots) { spot in
+                        ForEach(nearbySpots) { spot in
                             Text(spot.name).tag(spot.id)
                         }
                     }
@@ -340,6 +432,12 @@ struct SkateWithComposerView: View {
                 }
             }
             .task {
+                if locationManager.authorizationStatus == .authorizedWhenInUse
+                    || locationManager.authorizationStatus == .authorizedAlways {
+                    locationManager.startLocationUpdates()
+                } else {
+                    locationManager.requestLocationPermission()
+                }
                 await spotService.fetchSpots()
             }
         }

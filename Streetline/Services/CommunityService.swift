@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import CoreLocation
 import FirebaseFirestore
 
 class CommunityService: ObservableObject {
@@ -37,6 +38,7 @@ class CommunityService: ObservableObject {
         }
         
         let username = await userService.getCurrentUsername() ?? "Unknown"
+        let coords = await resolveCoordinates(spot: spot, placeName: customPlace)
         let post = CommunityPost(
             createdBy: uid,
             createdByUsername: username,
@@ -47,10 +49,28 @@ class CommunityService: ObservableObject {
             spotId: spot?.id,
             spotName: spot?.name,
             locationText: spot == nil ? customPlace : nil,
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
             expiresAt: sessionAt.addingTimeInterval(CommunityPost.lifetime)
         )
         let ref = db.collection(collectionName).document()
         try await ref.setData(from: post)
+    }
+    
+    private func resolveCoordinates(spot: SkateSpot?, placeName: String) async -> (latitude: Double, longitude: Double)? {
+        if let spot {
+            return (spot.latitude, spot.longitude)
+        }
+        guard !placeName.isEmpty else { return nil }
+        do {
+            let marks = try await CLGeocoder().geocodeAddressString(placeName)
+            if let location = marks.first?.location {
+                return (location.coordinate.latitude, location.coordinate.longitude)
+            }
+        } catch {
+            print("CommunityService geocode error: \(error.localizedDescription)")
+        }
+        return nil
     }
     
     /// Listen to recent forum posts. Caller should invoke returned closure to stop listening.

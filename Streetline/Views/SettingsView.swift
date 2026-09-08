@@ -22,6 +22,8 @@ struct SettingsView: View {
     @State private var showChangeEmail = false
     @State private var showDeleteAccount = false
     @State private var showBlockedUsers = false
+    @State private var showEditSkateProfile = false
+    @State private var loadedProfile: UserProfile?
     
     var body: some View {
         ZStack {
@@ -59,6 +61,9 @@ struct SettingsView: View {
             avatarURL = viewModel.avatarURL
             Task {
                 currentUsername = await userService.getCurrentUsername()
+                if let uid = Auth.auth().currentUser?.uid {
+                    loadedProfile = try? await userService.getProfile(uid: uid)
+                }
                 // Refresh avatar URL in the background and keep cache in sync
                 let freshURL = await userService.getCurrentAvatarURL()
                 await MainActor.run {
@@ -102,6 +107,20 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showBlockedUsers) {
             BlockedUsersView(userService: userService)
+        }
+        .sheet(isPresented: $showEditSkateProfile) {
+            EditSkateProfileView(
+                profile: loadedProfile,
+                userService: userService,
+                onDismiss: {
+                    showEditSkateProfile = false
+                    Task {
+                        if let uid = Auth.auth().currentUser?.uid {
+                            loadedProfile = try? await userService.getProfile(uid: uid)
+                        }
+                    }
+                }
+            )
         }
     }
     
@@ -147,6 +166,15 @@ struct SettingsView: View {
                 settingsRow(
                     title: "Change email",
                     systemImage: "envelope.badge.fill",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
+            
+            Button(action: { showEditSkateProfile = true }) {
+                settingsRow(
+                    title: "Skate profile",
+                    systemImage: "skateboard",
                     showsChevron: true
                 )
             }
@@ -366,6 +394,108 @@ struct SettingsView: View {
     }
 }
 
+
+// MARK: - Skate profile
+struct EditSkateProfileView: View {
+    let profile: UserProfile?
+    @ObservedObject var userService: UserService
+    var onDismiss: () -> Void
+    
+    @State private var ageText = ""
+    @State private var skillLevel = ""
+    @State private var favoriteTrick = ""
+    @State private var favoriteSkater = ""
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @State private var showSuccess = false
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Age", text: $ageText)
+                        .keyboardType(.numberPad)
+                    Picker("Skill level", selection: $skillLevel) {
+                        Text("Not set").tag("")
+                        ForEach(UserProfile.skillLevels, id: \.self) { level in
+                            Text(level).tag(level)
+                        }
+                    }
+                    TextField("Favorite trick", text: $favoriteTrick)
+                    TextField("Favorite skater", text: $favoriteSkater)
+                } footer: {
+                    Text("Shown on your public profile. Age must be 13 or older if you add it.")
+                }
+                
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                            .font(.subheadline)
+                    }
+                }
+            }
+            .navigationTitle("Skate profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                        onDismiss()
+                    }
+                    .disabled(isSaving)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task { await save() }
+                    }
+                    .disabled(isSaving)
+                }
+            }
+            .onAppear {
+                if let age = profile?.age { ageText = String(age) }
+                skillLevel = profile?.skillLevel ?? ""
+                favoriteTrick = profile?.favoriteTrick ?? ""
+                favoriteSkater = profile?.favoriteSkater ?? ""
+            }
+            .alert("Profile updated", isPresented: $showSuccess) {
+                Button("OK") {
+                    dismiss()
+                    onDismiss()
+                }
+            } message: {
+                Text("Your skate details are now on your profile.")
+            }
+        }
+    }
+    
+    private func save() async {
+        errorMessage = nil
+        let trimmedAge = ageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var age: Int?
+        if !trimmedAge.isEmpty {
+            guard let parsed = Int(trimmedAge) else {
+                errorMessage = "Age must be a number"
+                return
+            }
+            age = parsed
+        }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await userService.updateSkateDetails(
+                age: age,
+                skillLevel: skillLevel,
+                favoriteTrick: favoriteTrick,
+                favoriteSkater: favoriteSkater
+            )
+            showSuccess = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
 
 // MARK: - Change Username
 struct ChangeUsernameView: View {

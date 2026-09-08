@@ -16,7 +16,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     override init() {
         super.init()
         locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        locationManager.distanceFilter = kCLDistanceFilterNone
+        locationManager.pausesLocationUpdatesAutomatically = false
         authorizationStatus = locationManager.authorizationStatus
     }
     
@@ -31,10 +33,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             return
         }
         locationManager.startUpdatingLocation()
-        // Request a one-time location update if no location yet
-        if location == nil {
-            locationManager.requestLocation()
-        }
     }
     
     func stopLocationUpdates() {
@@ -43,7 +41,10 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     // MARK: - CLLocationManagerDelegate
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        location = locations.first
+        let latest = locations.last
+        DispatchQueue.main.async {
+            self.location = latest
+        }
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
@@ -54,10 +55,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         authorizationStatus = manager.authorizationStatus
         if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
             locationManager.startUpdatingLocation()
-            // Request immediate location if we don't have one yet
-            if location == nil {
-                locationManager.requestLocation()
-            }
         }
     }
 }

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import FirebaseAuth
+import MapKit
 
 struct FavoritesListView: View {
     @StateObject private var spotService = SpotService()
@@ -81,13 +82,12 @@ struct FavoritesListView: View {
                                             .frame(width: 56, height: 56)
                                             .clipShape(RoundedRectangle(cornerRadius: 10))
                                         } else {
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .fill(Color(.systemGray5))
-                                                .frame(width: 56, height: 56)
-                                                .overlay(
-                                                    Image(systemName: "mappin.circle.fill")
-                                                        .foregroundColor(.secondary)
-                                                )
+                                            ApplePlacePhotoView(
+                                                coordinate: CLLocationCoordinate2D(latitude: spot.latitude, longitude: spot.longitude),
+                                                width: 56,
+                                                height: 56,
+                                                cornerRadius: 10
+                                            )
                                         }
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text(spot.name)
