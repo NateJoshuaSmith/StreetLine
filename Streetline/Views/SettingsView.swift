@@ -25,13 +25,7 @@ struct SettingsView: View {
     
     var body: some View {
         ZStack {
-            Image("SettingPage")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-            
-            Color.black.opacity(0.55)
-                .ignoresSafeArea()
+            ArtBackdrop(imageName: "SettingPage", dim: 0.55)
             
             ScrollView(.vertical, showsIndicators: false) {
                 settingsCard

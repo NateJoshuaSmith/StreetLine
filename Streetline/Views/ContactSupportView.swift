@@ -59,24 +59,7 @@ struct ContactSupportView: View {
     }
     
     private var cityBackdrop: some View {
-        ZStack {
-            Color.black
-            Image("CityImage")
-                .resizable()
-                .scaledToFill()
-                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                .clipped()
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.15),
-                    Color.black.opacity(0.05),
-                    Color.black.opacity(0.35)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-        .ignoresSafeArea()
+        ArtBackdrop(imageName: "CityImage")
     }
     
     private var contactCard: some View {

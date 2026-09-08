@@ -29,14 +29,7 @@ struct FriendsListView: View {
     
     var body: some View {
         ZStack {
-            // Friends list background image with dark overlay, similar to Home
-            Image("FriendsBackground")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-            
-            Color.black.opacity(0.45)
-                .ignoresSafeArea()
+            ArtBackdrop(imageName: "FriendsBackground", dim: 0.45)
             
             Group {
                 if !isLoggedIn {

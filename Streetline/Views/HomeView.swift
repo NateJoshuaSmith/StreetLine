@@ -15,9 +15,7 @@ struct HomeView: View {
     var body: some View {
         let showFriendsDot = activityService.homeBadgeCount > 0
         return ZStack {
-            TimelineView(.periodic(from: .now, by: 60)) { context in
-                HomeCityBackdrop(date: context.date)
-            }
+            ArtBackdrop(imageName: "CityImage")
             
             GeometryReader { geometry in
                 ScrollView(.vertical, showsIndicators: false) {
@@ -199,82 +197,6 @@ struct HomeView: View {
             )
         }
         .buttonStyle(.plain)
-    }
-}
-
-private struct HomeCityBackdrop: View {
-    let date: Date
-    
-    var body: some View {
-        let sky = HomeSky.current(at: date)
-        ZStack {
-            Image("CityImage")
-                .resizable()
-                .scaledToFill()
-                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                .clipped()
-                .colorMultiply(sky.multiply)
-                .ignoresSafeArea()
-            
-            LinearGradient(
-                colors: sky.overlay,
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-        }
-    }
-}
-
-private enum HomeSky {
-    case morning, afternoon, evening, night
-    
-    static func current(at date: Date) -> HomeSky {
-        switch Calendar.current.component(.hour, from: date) {
-        case 5..<11: return .morning
-        case 11..<17: return .afternoon
-        case 17..<21: return .evening
-        default: return .night
-        }
-    }
-    
-    var multiply: Color {
-        switch self {
-        case .morning: return Color(red: 1.0, green: 0.93, blue: 0.82)
-        case .afternoon: return .white
-        case .evening: return Color(red: 1.0, green: 0.78, blue: 0.62)
-        case .night: return Color(red: 0.48, green: 0.55, blue: 0.78)
-        }
-    }
-    
-    var overlay: [Color] {
-        switch self {
-        case .morning:
-            return [
-                Color.orange.opacity(0.18),
-                Color.yellow.opacity(0.06),
-                Color.black.opacity(0.38)
-            ]
-        case .afternoon:
-            return [
-                Color.black.opacity(0.12),
-                Color.black.opacity(0.08),
-                Color.black.opacity(0.45)
-            ]
-        case .evening:
-            return [
-                Color.orange.opacity(0.28),
-                Color.purple.opacity(0.18),
-                Color.black.opacity(0.52)
-            ]
-        case .night:
-            return [
-                Color(red: 0.05, green: 0.08, blue: 0.22).opacity(0.45),
-                Color.black.opacity(0.28),
-                Color.black.opacity(0.62)
-            ]
-        }
     }
 }
 

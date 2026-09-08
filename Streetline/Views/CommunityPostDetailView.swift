@@ -33,12 +33,7 @@ struct CommunityPostDetailView: View {
     
     var body: some View {
         ZStack {
-            Image("PostsBackground")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-            Color.black.opacity(0.28)
-                .ignoresSafeArea()
+            ArtBackdrop(imageName: "PostsBackground", dim: 0.28)
             
             VStack(spacing: 12) {
                 postHeader

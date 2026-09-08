@@ -30,16 +30,7 @@ struct SignUp: View {
     
     var body: some View {
         ZStack {
-            ZStack {
-                Color.black
-                Image("CityImage")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                    .clipped()
-                Color.black.opacity(0.28)
-            }
-            .ignoresSafeArea()
+            ArtBackdrop(imageName: "CityImage", dim: 0.2)
             
             GeometryReader { geo in
                 ScrollView(.vertical, showsIndicators: false) {

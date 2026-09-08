@@ -21,14 +21,7 @@ struct FavoritesListView: View {
     
     var body: some View {
         ZStack {
-            // Favorites background image with dark overlay
-            Image("FavoritesBackground")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-            
-            Color.black.opacity(0.28)
-                .ignoresSafeArea()
+            ArtBackdrop(imageName: "FavoritesBackground", dim: 0.28)
             
             Group {
                 if !isLoggedIn {
