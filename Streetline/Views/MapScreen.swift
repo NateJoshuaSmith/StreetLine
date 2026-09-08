@@ -36,6 +36,7 @@ struct MapScreen: View {
     @State private var userCoordinateOverride: CLLocationCoordinate2D?
     @State private var recenterNonce = 0
     @State private var recenterToken = 0
+    @State private var locationHelpMessage: String?
     @State private var isLoadingSpots = true
     /// After finishing a drag, ignore pin taps briefly so the callout doesn’t open from touch-up.
     @State private var suppressPinTapUntil: Date = .distantPast
@@ -984,20 +985,36 @@ struct MapScreen: View {
     }
     
     private func centerOnUserLocation() {
-        if locationManager.authorizationStatus == .authorizedWhenInUse
-            || locationManager.authorizationStatus == .authorizedAlways {
-            locationManager.startLocationUpdates()
-        } else {
+        switch locationManager.authorizationStatus {
+        case .denied, .restricted:
+            locationHelpMessage = "Location is turned off for Streetline. Turn it on in Settings, then tap the blue arrow again."
+            return
+        case .notDetermined:
             locationManager.requestLocationPermission()
+            shouldCenterOnUserWhenAvailable = true
+            return
+        default:
+            locationManager.startLocationUpdates()
         }
+        
         if let coordinate = validUserCoordinate() {
             userCoordinateOverride = coordinate
             hasCenteredOnUserLocation = true
             shouldCenterOnUserWhenAvailable = false
+            moveCamera(to: coordinate)
             recenterToken += 1
             return
         }
+        
         shouldCenterOnUserWhenAvailable = true
+        recenterToken += 1
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard validUserCoordinate() == nil else { return }
+            await MainActor.run {
+                locationHelpMessage = "Can't find your GPS yet. On a phone: Settings → Streetline → Location → While Using. In Simulator: Features → Location → Apple."
+            }
+        }
     }
     
     private func regionForNearbyRadius(around coordinate: CLLocationCoordinate2D) -> MKCoordinateRegion {
@@ -1048,6 +1065,27 @@ struct MapScreen: View {
         }
         .sheet(item: $clipsSpot) { spot in
             SpotClipsView(spot: spot)
+        }
+        .alert(
+            "Location needed",
+            isPresented: Binding(
+                get: { locationHelpMessage != nil },
+                set: { if !$0 { locationHelpMessage = nil } }
+            )
+        ) {
+            if locationManager.authorizationStatus == .denied
+                || locationManager.authorizationStatus == .restricted {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+            }
+            Button("OK", role: .cancel) {
+                locationHelpMessage = nil
+            }
+        } message: {
+            Text(locationHelpMessage ?? "")
         }
         .task {
             setupTask()
@@ -1106,7 +1144,8 @@ private struct MapKitRecenterHook: UIViewRepresentable {
         context.coordinator.lastToken = token
         
         func recenter() {
-            guard let mapView = uiView.window?.streetline_findMapView() else { return }
+            let mapView = uiView.window?.streetline_findMapView() ?? UIView.streetline_firstMapView()
+            guard let mapView else { return }
             mapView.showsUserLocation = true
             let coordinate = mapView.userLocation.location?.coordinate ?? fallbackCoordinate
             if let coordinate, CLLocationCoordinate2DIsValid(coordinate),
@@ -1146,6 +1185,18 @@ private extension UIView {
         for child in subviews {
             if let mapView = child.streetline_findMapView() {
                 return mapView
+            }
+        }
+        return nil
+    }
+    
+    static func streetline_firstMapView() -> MKMapView? {
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                if let mapView = window.streetline_findMapView() {
+                    return mapView
+                }
             }
         }
         return nil
