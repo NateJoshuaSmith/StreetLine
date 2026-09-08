@@ -19,6 +19,7 @@ struct AddSpotView: View {
     @State private var spotName: String = ""
     @State private var spotComment: String = ""
     @State private var isSaving: Bool = false
+    @State private var saveError: String?
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedImageData: Data?
     @State private var applePlacePreview: UIImage?
@@ -177,6 +178,14 @@ struct AddSpotView: View {
                             }
                         }
                         
+                        if let saveError {
+                            Text(saveError)
+                                .font(.footnote)
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        
                         bubbleCard {
                             Button(action: {
                                 Task {
@@ -202,14 +211,14 @@ struct AddSpotView: View {
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
                                         .fill(
-                                            spotName.isEmpty || isSaving
+                                            canSave
                                                 ? LinearGradient(
-                                                    colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.3)],
+                                                    colors: [.blue, .purple],
                                                     startPoint: .leading,
                                                     endPoint: .trailing
                                                 )
                                                 : LinearGradient(
-                                                    colors: [.blue, .purple],
+                                                    colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.3)],
                                                     startPoint: .leading,
                                                     endPoint: .trailing
                                                 )
@@ -217,7 +226,7 @@ struct AddSpotView: View {
                                 )
                             }
                             .buttonStyle(.plain)
-                            .disabled(spotName.isEmpty || isSaving)
+                            .disabled(!canSave)
                         }
                     }
                     .padding(.horizontal)
@@ -271,23 +280,34 @@ struct AddSpotView: View {
         }
     }
     
+    private var trimmedName: String {
+        spotName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    private var canSave: Bool {
+        !trimmedName.isEmpty && !isSaving
+    }
+    
     private func saveSpot() async {
-        guard !spotName.isEmpty else { return }
+        guard canSave else { return }
         
         isSaving = true
+        saveError = nil
         defer { isSaving = false }
         do {
             var imageURL: String?
             if let data = selectedImageData, !data.isEmpty {
                 imageURL = try await spotService.uploadSpotImage(data: data)
-            } else if let appleData = applePlacePreview?.jpegData(compressionQuality: 0.78) {
-                imageURL = try await spotService.uploadSpotImage(data: appleData)
+            } else if let appleData = applePlacePreview?.jpegData(compressionQuality: 0.7) {
+                imageURL = try? await spotService.uploadSpotImage(data: appleData)
             }
             try await spotService.addSpot(
-                name: spotName,
+                name: trimmedName,
                 latitude: latitude,
                 longitude: longitude,
-                comment: spotComment.isEmpty ? "No comment" : spotComment,
+                comment: spotComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "No comment"
+                    : spotComment,
                 imageURL: imageURL,
                 tags: selectedTags.isEmpty ? nil : Array(selectedTags),
                 difficulty: selectedDifficulty,
@@ -295,6 +315,7 @@ struct AddSpotView: View {
             )
             dismiss()
         } catch {
+            saveError = error.localizedDescription
             print("Error saving spot: \(error)")
         }
     }

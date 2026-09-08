@@ -38,74 +38,98 @@ struct LobbyView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 10) {
-                        if messages.isEmpty, errorMessage == nil {
-                            Text("Say something to the lobby.")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 24)
-                        }
-                        ForEach(messages) { message in
-                            lobbyBubble(message)
-                                .id(message.id)
-                                .contextMenu {
-                                    if message.senderId != currentUserId {
-                                        Button {
-                                            messageToReport = message
-                                        } label: {
-                                            Label("Report", systemImage: "flag")
-                                        }
-                                        Button(role: .destructive) {
-                                            userToBlock = (message.senderId, message.senderUsername)
-                                        } label: {
-                                            Label("Block @\(message.senderUsername)", systemImage: "hand.raised")
+        ZStack {
+            ArtBackdrop(imageName: "LobbyBackgroudImage", dim: 0.22)
+            
+            VStack(spacing: 0) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            if messages.isEmpty, errorMessage == nil {
+                                Text("Say something to the lobby.")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundColor(.primary)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(chatBubbleFill)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                    .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
+                                    .padding(.top, 24)
+                            }
+                            ForEach(messages) { message in
+                                lobbyBubble(message)
+                                    .id(message.id)
+                                    .contextMenu {
+                                        if message.senderId != currentUserId {
+                                            Button {
+                                                messageToReport = message
+                                            } label: {
+                                                Label("Report", systemImage: "flag")
+                                            }
+                                            Button(role: .destructive) {
+                                                userToBlock = (message.senderId, message.senderUsername)
+                                            } label: {
+                                                Label("Block @\(message.senderUsername)", systemImage: "hand.raised")
+                                            }
                                         }
                                     }
-                                }
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                    }
+                    .scrollContentBackground(.hidden)
+                    .onChange(of: messages.count) { _, _ in
+                        if let lastId = messages.last?.id {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                proxy.scrollTo(lastId, anchor: .bottom)
+                            }
                         }
                     }
-                    .padding()
                 }
-                .onChange(of: messages.count) { _, _ in
-                    if let lastId = messages.last?.id {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            proxy.scrollTo(lastId, anchor: .bottom)
+                
+                VStack(spacing: 6) {
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    HStack(spacing: 12) {
+                        TextField("Message the lobby", text: $inputText, axis: .vertical)
+                            .textFieldStyle(.plain)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .lineLimit(1...4)
+                            .onSubmit { sendMessage() }
+                        Button(action: sendMessage) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .blue)
                         }
+                        .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.94))
             }
-            
-            Divider()
-            VStack(spacing: 6) {
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundColor(.red)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                HStack(spacing: 12) {
-                    TextField("Message the lobby", text: $inputText, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(1...4)
-                        .onSubmit { sendMessage() }
-                    Button(action: sendMessage) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .blue)
-                    }
-                    .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(.systemBackground))
         }
-        .navigationTitle("Lobby")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Lobby")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.white.opacity(0.95)))
+            }
+        }
         .task {
             startListening()
             async let blocked: Void = userService.loadBlockedUsers()
@@ -154,38 +178,47 @@ struct LobbyView: View {
         }
     }
     
+    private var chatBubbleFill: Color {
+        Color.white.opacity(0.96)
+    }
+    
     private func lobbyBubble(_ message: LobbyMessage) -> some View {
         let isMine = message.senderId == currentUserId
         let rawName = message.senderUsername.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = isMine ? (currentUsername.isEmpty ? "You" : currentUsername) : (rawName.isEmpty ? "Unknown" : rawName)
         let initial = String(name.prefix(1)).uppercased()
         
-        return HStack(alignment: .top, spacing: 8) {
-            Circle()
-                .fill(Color(.systemGray5))
-                .frame(width: 28, height: 28)
-                .overlay(
-                    Text(initial)
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(.black)
-                )
+        return HStack(alignment: .bottom, spacing: 8) {
+            if isMine { Spacer(minLength: 48) }
             
-            VStack(alignment: .leading, spacing: 4) {
+            if !isMine {
+                Circle()
+                    .fill(Color.white.opacity(0.95))
+                    .frame(width: 28, height: 28)
+                    .overlay(
+                        Text(initial)
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(.black)
+                    )
+            }
+            
+            VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
                 Text(isMine ? "You" : "@\(name)")
                     .font(.caption.weight(.bold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
                 
-                HStack {
-                    if isMine { Spacer(minLength: 40) }
-                    Text(message.text)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(isMine ? Color.blue : Color(.systemGray5))
-                        .foregroundColor(isMine ? .white : .primary)
-                        .cornerRadius(16)
-                    if !isMine { Spacer(minLength: 40) }
-                }
+                Text(message.text)
+                    .font(.body)
+                    .foregroundColor(isMine ? .white : .primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(isMine ? Color.blue : chatBubbleFill)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .shadow(color: .black.opacity(0.2), radius: 5, y: 2)
             }
+            
+            if !isMine { Spacer(minLength: 48) }
         }
     }
     

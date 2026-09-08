@@ -30,16 +30,15 @@ class LobbyService: ObservableObject {
         guard !trimmed.isEmpty else { return }
         
         let displayName = username.trimmingCharacters(in: .whitespacesAndNewlines)
-        try await ensureLobbyDocument(uid: uid, username: displayName)
+        try await createLobbyDocumentIfNeeded(uid: uid, username: displayName)
         
-        let now = Date()
-        try await messagesCollection.document().setData([
-            "createdBy": uid,
-            "createdByUsername": displayName.isEmpty ? "Unknown" : displayName,
-            "text": trimmed,
-            "createdAt": Timestamp(date: now),
-            "expireAt": Timestamp(date: now.addingTimeInterval(LobbyMessage.lifetime))
-        ])
+        let comment = CommunityComment(
+            createdBy: uid,
+            createdByUsername: displayName.isEmpty ? "Unknown" : displayName,
+            text: trimmed,
+            createdAt: Date()
+        )
+        try await messagesCollection.document().setData(from: comment)
     }
     
     func listenToMessages(
@@ -83,14 +82,23 @@ class LobbyService: ObservableObject {
         }
     }
     
-    private func ensureLobbyDocument(uid: String, username: String) async throws {
-        try await db.collection("communityPosts").document(CommunityPost.lobbyDocumentId).setData([
+    private func createLobbyDocumentIfNeeded(uid: String, username: String) async throws {
+        let ref = db.collection("communityPosts").document(CommunityPost.lobbyDocumentId)
+        let snapshot = try await ref.getDocument()
+        guard !snapshot.exists else { return }
+        
+        let now = Date()
+        try await ref.setData([
             "createdBy": uid,
             "createdByUsername": username.isEmpty ? "Lobby" : username,
             "text": "Lobby",
-            "createdAt": Timestamp(date: Date()),
+            "createdAt": Timestamp(date: now),
+            "sessionAt": Timestamp(date: now),
+            "sessionWhat": "Mixed",
+            "locationText": "Lobby",
+            "expiresAt": Timestamp(date: now.addingTimeInterval(60 * 60 * 24 * 365 * 10)),
             "isLobby": true
-        ], merge: true)
+        ])
     }
     
     private static func decode(_ doc: QueryDocumentSnapshot) -> LobbyMessage? {

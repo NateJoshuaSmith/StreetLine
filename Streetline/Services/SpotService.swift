@@ -108,8 +108,9 @@ class SpotService: ObservableObject {
         )
         
         do {
-            _ = try db.collection(collectionName).addDocument(from: spot)
-            await fetchSpots() // Refresh the list
+            let ref = db.collection(collectionName).document()
+            try await ref.setData(from: spot)
+            Task { await fetchSpots() }
         } catch {
             print("Error adding spot: \(error)")
             throw error
