@@ -46,6 +46,8 @@ struct MapScreen: View {
     @State private var showAddSpotSheet = false
     @State private var showSkateShopsSheet = false
     @State private var showSkateParksSheet = false
+    @State private var showLocationSearch = false
+    @State private var travelDestination: TravelDestination?
     @State private var nearbyShops: [NearbyPlace] = []
     @State private var nearbyParks: [NearbyPlace] = []
     @State private var selectedNearbyPlace: MapPlacePin?
@@ -80,6 +82,8 @@ struct MapScreen: View {
     @State private var selectedStatusFilter: String? = nil
     /// Miles from the user. `0` shows every spot.
     @AppStorage("mapNearbyRadiusMiles") private var nearbyRadiusMiles: Double = 10
+    /// Miles for Google skate shops/parks. `0` is All (no mileage cutoff).
+    @AppStorage("placesNearbyRadiusMiles") private var placesNearbyRadiusMiles: Double = 10
     
     private let allTags = ["Street", "Park", "DIY", "Ledge", "Rail", "Hubba", "Bowl", "Red Curb"]
     private let allDifficulties = ["Beginner", "Intermediate", "Advanced"]
@@ -104,8 +108,19 @@ struct MapScreen: View {
     }
     
     private var placesSearchCoordinate: CLLocationCoordinate2D {
-        resolvedUserCoordinate
+        if let travel = travelDestination {
+            return travel.coordinate
+        }
+        return resolvedUserCoordinate
             ?? CLLocationCoordinate2D(latitude: selectedLatitude, longitude: selectedLongitude)
+    }
+    
+    /// FILTER radius is measured from the travel destination, or GPS when you're not traveling.
+    private var radiusOrigin: CLLocation? {
+        if let travel = travelDestination {
+            return CLLocation(latitude: travel.latitude, longitude: travel.longitude)
+        }
+        return locationManager.location
     }
     
     private var visibleMapPlaces: [MapPlacePin] {
@@ -114,8 +129,8 @@ struct MapScreen: View {
     }
     
     private var nearbySearchRadiusMeters: Double {
-        if nearbyRadiusMiles > 0 {
-            return nearbyRadiusMiles * metersPerMile
+        if placesNearbyRadiusMiles > 0 {
+            return min(placesNearbyRadiusMiles * metersPerMile, 50_000)
         }
         return 50_000
     }
@@ -132,7 +147,7 @@ struct MapScreen: View {
             if let funLevel = selectedStatusFilter {
                 if spot.status != funLevel { return false }
             }
-            if nearbyRadiusMiles > 0, let origin = locationManager.location {
+            if nearbyRadiusMiles > 0, let origin = radiusOrigin {
                 let spotLocation = CLLocation(latitude: spot.latitude, longitude: spot.longitude)
                 if origin.distance(from: spotLocation) > nearbyRadiusMiles * metersPerMile {
                     return false
@@ -200,6 +215,27 @@ struct MapScreen: View {
         .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
         .allowsHitTesting(false)
         .accessibilityLabel("Your location")
+    }
+    
+    private var travelPin: some View {
+        VStack(spacing: 3) {
+            Image(systemName: "mappin.circle.fill")
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(Color(red: 0.95, green: 0.28, blue: 0.18), .white)
+                .overlay(
+                    Circle().stroke(Color.black, lineWidth: 2)
+                )
+            Text("Here")
+                .font(.caption2.weight(.heavy))
+                .foregroundColor(.black)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.white))
+                .overlay(Capsule().stroke(Color.black, lineWidth: 1.5))
+        }
+        .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+        .allowsHitTesting(false)
+        .accessibilityLabel("Travel destination")
     }
 
     // Loading indicator view
@@ -752,8 +788,8 @@ struct MapScreen: View {
     @ViewBuilder
     private func mapView(geometry: GeometryProxy, proxy: MapProxy) -> some View {
         Map(position: $cameraPosition) {
-            if nearbyRadiusMiles > 0, let origin = resolvedUserCoordinate {
-                MapCircle(center: origin, radius: nearbyRadiusMiles * metersPerMile)
+            if nearbyRadiusMiles > 0, let origin = radiusOrigin {
+                MapCircle(center: origin.coordinate, radius: nearbyRadiusMiles * metersPerMile)
                     .foregroundStyle(Color.blue.opacity(0.08))
                     .stroke(Color.blue.opacity(0.4), lineWidth: 1.5)
             }
@@ -776,6 +812,11 @@ struct MapScreen: View {
             }
             UserAnnotation {
                 userLocationDot
+            }
+            if let travel = travelDestination {
+                Annotation(travel.name, coordinate: travel.coordinate) {
+                    travelPin
+                }
             }
             ForEach(visibleMapPlaces) { pin in
                 Annotation(pin.place.name, coordinate: pin.place.coordinate) {
@@ -894,7 +935,42 @@ struct MapScreen: View {
                 Spacer()
                     .allowsHitTesting(false)
                 
+                if let travel = travelDestination {
+                    HStack {
+                        HStack(spacing: 8) {
+                            Image(systemName: "mappin.and.ellipse")
+                                .font(.caption.weight(.heavy))
+                            Text(travel.name)
+                                .font(.caption.weight(.heavy))
+                                .lineLimit(1)
+                            Button {
+                                clearTravelAndReturnHome()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.caption.weight(.heavy))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Leave \(travel.name)")
+                        }
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(toolbarCapsule)
+                    }
+                    .padding(.horizontal, 14)
+                }
+                
                 HStack {
+                    Button(action: { showLocationSearch = true }) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.body.weight(.semibold))
+                            .foregroundColor(.black)
+                            .frame(width: 44, height: 44)
+                            .background(toolbarCapsule)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Search a location to travel to")
+                    
                     Spacer()
                         .allowsHitTesting(false)
                     Button(action: centerOnUserLocation) {
@@ -1108,6 +1184,7 @@ struct MapScreen: View {
     private func handleLocationChange(newLocation: CLLocation?) {
         guard let userLocation = newLocation, isValidCoordinate(userLocation.coordinate) else { return }
         userCoordinateOverride = userLocation.coordinate
+        guard travelDestination == nil else { return }
         guard !hasCenteredOnUserLocation || shouldCenterOnUserWhenAvailable else { return }
         hasCenteredOnUserLocation = true
         shouldCenterOnUserWhenAvailable = false
@@ -1149,7 +1226,25 @@ struct MapScreen: View {
         return nil
     }
     
+    private func travelTo(_ destination: TravelDestination) {
+        travelDestination = destination
+        hasCenteredOnUserLocation = true
+        shouldCenterOnUserWhenAvailable = false
+        moveCamera(to: destination.coordinate)
+        Task { await reloadVisibleNearbyPlaces() }
+    }
+    
+    private func clearTravelAndReturnHome() {
+        centerOnUserLocation()
+    }
+    
     private func centerOnUserLocation() {
+        let leavingTravel = travelDestination != nil
+        travelDestination = nil
+        if leavingTravel {
+            Task { await reloadVisibleNearbyPlaces() }
+        }
+        
         switch locationManager.authorizationStatus {
         case .denied, .restricted:
             locationHelpMessage = "Location is turned off for Streetline. Turn it on in Settings, then tap the blue arrow again."
@@ -1214,16 +1309,19 @@ struct MapScreen: View {
         .sheet(isPresented: $showSkateShopsSheet) {
             NearbySkateShopsView(
                 latitude: placesSearchCoordinate.latitude,
-                longitude: placesSearchCoordinate.longitude,
-                radiusMeters: nearbySearchRadiusMeters
+                longitude: placesSearchCoordinate.longitude
             )
         }
         .sheet(isPresented: $showSkateParksSheet) {
             NearbySkateParksView(
                 latitude: placesSearchCoordinate.latitude,
-                longitude: placesSearchCoordinate.longitude,
-                radiusMeters: nearbySearchRadiusMeters
+                longitude: placesSearchCoordinate.longitude
             )
+        }
+        .sheet(isPresented: $showLocationSearch) {
+            MapLocationSearchView { destination in
+                travelTo(destination)
+            }
         }
         .sheet(item: $streetViewTarget) { target in
             StreetViewSheet(coordinate: target.coordinate, title: target.name)
@@ -1269,6 +1367,8 @@ struct MapScreen: View {
                !filteredSpots.contains(where: { $0.id == selectedId }) {
                 selectedCalloutSpotId = nil
             }
+        }
+        .onChange(of: placesNearbyRadiusMiles) { _, _ in
             Task { await reloadVisibleNearbyPlaces() }
         }
         .onChange(of: selectedCalloutSpotId) { _, newId in

@@ -8,6 +8,7 @@
 
 import Foundation
 import CoreLocation
+import MapKit
 
 // MARK: - Nearby place (e.g. skate shop) for list + directions
 struct NearbyPlace: Identifiable, Equatable {
@@ -33,6 +34,12 @@ struct GooglePlacesService {
             print("[PlacesNew] GooglePlacesAPIKey missing or empty in target Info")
         }
         return raw
+    }
+    
+    /// iOS-restricted keys require this header on REST calls. Without it Google returns 403
+    /// "Requests from this iOS client application <empty> are blocked."
+    private static var bundleIdentifier: String {
+        Bundle.main.bundleIdentifier ?? "Streetline.Streetline"
     }
     
     /// Finds a nearby place and returns the first photo URL, or nil if none found / no API key.
@@ -64,151 +71,252 @@ struct GooglePlacesService {
         return photoURL
     }
     
-    /// Search for skate shops near the given coordinate (e.g. map center or city). Uses locationBias so results are in the area.
-    /// Radius is in meters (e.g. 10000 for ~10 km / "city area").
+    /// Search for skate shops near the given coordinate.
     func fetchNearbySkateShops(latitude: Double, longitude: Double, radiusMeters: Double = 10000) async -> [NearbyPlace] {
-        guard let key = Self.apiKey, !key.isEmpty else {
-            print("[PlacesNew] Aborting fetchNearbySkateShops – no API key")
-            return []
-        }
-        
-        guard let url = URL(string: "https://places.googleapis.com/v1/places:searchText") else { return [] }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue(key, forHTTPHeaderField: "X-Goog-Api-Key")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("places.id,places.displayName,places.formattedAddress,places.location", forHTTPHeaderField: "X-Goog-FieldMask")
-        
-        let body: [String: Any] = [
-            "textQuery": "skate shop",
-            "locationBias": [
-                "circle": [
-                    "center": [
-                        "latitude": latitude,
-                        "longitude": longitude
-                    ],
-                    "radius": radiusMeters
-                ]
-            ],
-            "maxResultCount": 20
-        ]
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        } catch {
-            print("[PlacesNew] Failed to encode skate shop search body: \(error.localizedDescription)")
-            return []
-        }
-        
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse {
-                print("[PlacesNew] searchText (skate shops) HTTP status: \(http.statusCode)")
-            }
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-            if let errorMessage = json?["error_message"] as? String {
-                print("[PlacesNew] searchText error_message: \(errorMessage)")
-            }
-            
-            guard let places = json?["places"] as? [[String: Any]] else {
-                return []
-            }
-            
-            var results: [NearbyPlace] = []
-            for place in places {
-                let placeId = place["id"] as? String ?? ""
-                let name = (place["displayName"] as? [String: Any])?["text"] as? String ?? "Unknown"
-                let address = place["formattedAddress"] as? String
-                guard let loc = place["location"] as? [String: Any],
-                      let lat = loc["latitude"] as? Double,
-                      let lng = loc["longitude"] as? Double else { continue }
-                results.append(NearbyPlace(
-                    id: placeId.isEmpty ? "\(lat)-\(lng)" : placeId,
-                    name: name,
-                    formattedAddress: address,
-                    latitude: lat,
-                    longitude: lng
-                ))
-            }
-            return results
-        } catch {
-            print("[PlacesNew] searchText (skate shops) error: \(error.localizedDescription)")
-            return []
-        }
+        await fetchNearbyPlaces(
+            query: "skate shop",
+            latitude: latitude,
+            longitude: longitude,
+            radiusMeters: radiusMeters,
+            include: Self.isSkateShop
+        )
     }
     
     /// Search for skate parks near the given coordinate.
     func fetchNearbySkateParks(latitude: Double, longitude: Double, radiusMeters: Double = 10000) async -> [NearbyPlace] {
+        await fetchNearbyPlaces(
+            query: "skate park",
+            latitude: latitude,
+            longitude: longitude,
+            radiusMeters: radiusMeters,
+            include: Self.isSkatePark
+        )
+    }
+    
+    private func fetchNearbyPlaces(
+        query: String,
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Double,
+        include: (NearbyPlace) -> Bool
+    ) async -> [NearbyPlace] {
+        let google = await searchTextPlaces(
+            query: query,
+            latitude: latitude,
+            longitude: longitude,
+            radiusMeters: radiusMeters
+        )
+        let googleFiltered = placesWithinRadius(
+            google.filter(include),
+            latitude: latitude,
+            longitude: longitude,
+            radiusMeters: radiusMeters
+        )
+        if !googleFiltered.isEmpty {
+            print("[PlacesNew] \(query): \(googleFiltered.count) Google results inside \(Int(radiusMeters))m")
+            return googleFiltered
+        }
+        let apple = await mapKitPlaces(
+            query: query,
+            latitude: latitude,
+            longitude: longitude,
+            radiusMeters: radiusMeters
+        )
+        let appleFiltered = placesWithinRadius(
+            apple.filter(include),
+            latitude: latitude,
+            longitude: longitude,
+            radiusMeters: radiusMeters
+        )
+        print("[PlacesNew] \(query): Google empty/filtered, Apple Maps fallback \(appleFiltered.count) inside \(Int(radiusMeters))m")
+        return appleFiltered
+    }
+    
+    private func placesWithinRadius(
+        _ places: [NearbyPlace],
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Double
+    ) -> [NearbyPlace] {
+        let origin = CLLocation(latitude: latitude, longitude: longitude)
+        let limit = min(max(radiusMeters, 1), 50_000)
+        return places
+            .filter { place in
+                let here = CLLocation(latitude: place.latitude, longitude: place.longitude)
+                return origin.distance(from: here) <= limit
+            }
+            .sorted { lhs, rhs in
+                let left = CLLocation(latitude: lhs.latitude, longitude: lhs.longitude)
+                let right = CLLocation(latitude: rhs.latitude, longitude: rhs.longitude)
+                return origin.distance(from: left) < origin.distance(from: right)
+            }
+    }
+    
+    private func searchTextPlaces(
+        query: String,
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Double
+    ) async -> [NearbyPlace] {
         guard let key = Self.apiKey, !key.isEmpty else {
-            print("[PlacesNew] Aborting fetchNearbySkateParks – no API key")
+            print("[PlacesNew] Aborting searchText (\(query)) – no API key")
             return []
         }
-        
         guard let url = URL(string: "https://places.googleapis.com/v1/places:searchText") else { return [] }
         
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue(key, forHTTPHeaderField: "X-Goog-Api-Key")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("places.id,places.displayName,places.formattedAddress,places.location", forHTTPHeaderField: "X-Goog-FieldMask")
-        
+        var request = placesPOSTRequest(
+            url: url,
+            apiKey: key,
+            fieldMask: "places.id,places.displayName,places.formattedAddress,places.location"
+        )
+        let clampedRadius = min(max(radiusMeters, 1), 50_000)
+        let latDelta = clampedRadius / 111_320.0
+        let lngDelta = clampedRadius / (111_320.0 * max(cos(latitude * .pi / 180), 0.01))
         let body: [String: Any] = [
-            "textQuery": "skate park",
-            "locationBias": [
-                "circle": [
-                    "center": [
-                        "latitude": latitude,
-                        "longitude": longitude
+            "textQuery": query,
+            "rankPreference": "DISTANCE",
+            "locationRestriction": [
+                "rectangle": [
+                    "low": [
+                        "latitude": latitude - latDelta,
+                        "longitude": longitude - lngDelta
                     ],
-                    "radius": radiusMeters
+                    "high": [
+                        "latitude": latitude + latDelta,
+                        "longitude": longitude + lngDelta
+                    ]
                 ]
             ],
             "maxResultCount": 20
         ]
-        
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         } catch {
-            print("[PlacesNew] Failed to encode skate park search body: \(error.localizedDescription)")
+            print("[PlacesNew] Failed to encode \(query) search body: \(error.localizedDescription)")
             return []
         }
         
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             if let http = response as? HTTPURLResponse {
-                print("[PlacesNew] searchText (skate parks) HTTP status: \(http.statusCode)")
+                print("[PlacesNew] searchText (\(query)) HTTP status: \(http.statusCode)")
             }
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-            if let errorMessage = json?["error_message"] as? String {
-                print("[PlacesNew] skate parks search error_message: \(errorMessage)")
-            }
-            
-            guard let places = json?["places"] as? [[String: Any]] else {
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+            if let error = json["error"] as? [String: Any] {
+                print("[PlacesNew] searchText (\(query)) error: \(error["status"] ?? "") \(error["message"] ?? "")")
                 return []
             }
-            
-            var results: [NearbyPlace] = []
-            for place in places {
-                let placeId = place["id"] as? String ?? ""
-                let name = (place["displayName"] as? [String: Any])?["text"] as? String ?? "Unknown"
-                let address = place["formattedAddress"] as? String
-                guard let loc = place["location"] as? [String: Any],
-                      let lat = loc["latitude"] as? Double,
-                      let lng = loc["longitude"] as? Double else { continue }
-                results.append(NearbyPlace(
-                    id: placeId.isEmpty ? "\(lat)-\(lng)" : placeId,
-                    name: name,
-                    formattedAddress: address,
-                    latitude: lat,
-                    longitude: lng
-                ))
+            guard let places = json["places"] as? [[String: Any]] else {
+                return []
             }
-            return results
+            return places.compactMap { nearbyPlace(from: $0) }
         } catch {
-            print("[PlacesNew] searchText (skate parks) error: \(error.localizedDescription)")
+            print("[PlacesNew] searchText (\(query)) error: \(error.localizedDescription)")
             return []
         }
+    }
+    
+    /// Drop surf shops and other lookalikes that Places lumps in with skate.
+    private static func isSkateShop(_ place: NearbyPlace) -> Bool {
+        let text = "\(place.name) \(place.formattedAddress ?? "")".lowercased()
+        if isSurfOnly(text) { return false }
+        if text.contains("snowboard") && !containsSkateTerm(text) { return false }
+        return true
+    }
+    
+    private static func isSkatePark(_ place: NearbyPlace) -> Bool {
+        let text = "\(place.name) \(place.formattedAddress ?? "")".lowercased()
+        if isSurfOnly(text) { return false }
+        return true
+    }
+    
+    private static func isSurfOnly(_ text: String) -> Bool {
+        containsSurfTerm(text) && !containsSkateTerm(text)
+    }
+    
+    private static func containsSkateTerm(_ text: String) -> Bool {
+        text.contains("skate") || text.contains("skateboard")
+    }
+    
+    private static func containsSurfTerm(_ text: String) -> Bool {
+        text.contains("surfboard") || text.contains("surfing") || text.contains("surf shop")
+            || text.range(of: #"\bsurf(s|y)?\b"#, options: .regularExpression) != nil
+    }
+    
+    private func mapKitPlaces(
+        query: String,
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Double
+    ) async -> [NearbyPlace] {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        request.resultTypes = [.pointOfInterest]
+        let spanMeters = max(min(radiusMeters, 50_000) * 2, 2_000)
+        request.region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+            latitudinalMeters: spanMeters,
+            longitudinalMeters: spanMeters
+        )
+        do {
+            let response = try await MKLocalSearch(request: request).start()
+            return response.mapItems.compactMap { item in
+                let coordinate = item.location.coordinate
+                guard CLLocationCoordinate2DIsValid(coordinate) else { return nil }
+                let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? query
+                return NearbyPlace(
+                    id: item.identifier?.rawValue ?? "\(coordinate.latitude)-\(coordinate.longitude)",
+                    name: name,
+                    formattedAddress: formattedAddress(from: item),
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude
+                )
+            }
+        } catch {
+            print("[PlacesNew] MapKit \(query) error: \(error.localizedDescription)")
+            return []
+        }
+    }
+    
+    private func formattedAddress(from item: MKMapItem) -> String? {
+        let full = item.addressRepresentations?.fullAddress(includingRegion: true, singleLine: true)
+        if let full, !full.isEmpty { return full }
+        return item.addressRepresentations?.cityWithContext
+    }
+    
+    private func nearbyPlace(from place: [String: Any]) -> NearbyPlace? {
+        let placeId = place["id"] as? String ?? ""
+        let name = (place["displayName"] as? [String: Any])?["text"] as? String ?? "Unknown"
+        let address = place["formattedAddress"] as? String
+        guard let loc = place["location"] as? [String: Any],
+              let lat = Self.double(from: loc["latitude"]),
+              let lng = Self.double(from: loc["longitude"]) else {
+            return nil
+        }
+        return NearbyPlace(
+            id: placeId.isEmpty ? "\(lat)-\(lng)" : placeId,
+            name: name,
+            formattedAddress: address,
+            latitude: lat,
+            longitude: lng
+        )
+    }
+    
+    private static func double(from value: Any?) -> Double? {
+        if let number = value as? Double { return number }
+        if let number = value as? NSNumber { return number.doubleValue }
+        if let text = value as? String { return Double(text) }
+        return nil
+    }
+    
+    private func placesPOSTRequest(url: URL, apiKey: String, fieldMask: String) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue(apiKey, forHTTPHeaderField: "X-Goog-Api-Key")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue(fieldMask, forHTTPHeaderField: "X-Goog-FieldMask")
+        request.addValue(Self.bundleIdentifier, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
+        return request
     }
     
     /// Calls places.searchText (New) and returns the resource name of the first photo, if any.
@@ -222,12 +330,11 @@ struct GooglePlacesService {
             return nil
         }
         
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue(apiKey, forHTTPHeaderField: "X-Goog-Api-Key")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        // Request id, photos, displayName (for name filter), location (for distance filter)
-        request.addValue("places.id,places.photos,places.displayName,places.location", forHTTPHeaderField: "X-Goog-FieldMask")
+        var request = placesPOSTRequest(
+            url: url,
+            apiKey: apiKey,
+            fieldMask: "places.id,places.photos,places.displayName,places.location"
+        )
         
         // Tighten search to a ~50m box so we don't get random nearby places
         let delta = 0.00045 // ~50m in degrees
@@ -264,8 +371,8 @@ struct GooglePlacesService {
             if let status = json?["status"] as? String {
                 print("[PlacesNew] searchText status: \(status)")
             }
-            if let errorMessage = json?["error_message"] as? String {
-                print("[PlacesNew] searchText error_message: \(errorMessage)")
+            if let error = json?["error"] as? [String: Any] {
+                print("[PlacesNew] searchText error: \(error["status"] ?? "") \(error["message"] ?? "")")
             }
             
             guard let places = json?["places"] as? [[String: Any]], !places.isEmpty else {
@@ -288,8 +395,8 @@ struct GooglePlacesService {
                     }
                     // Optional distance filter: if place has location, only use if within ~100m
                     if let loc = place["location"] as? [String: Any],
-                       let placeLat = loc["latitude"] as? Double,
-                       let placeLng = loc["longitude"] as? Double {
+                       let placeLat = Self.double(from: loc["latitude"]),
+                       let placeLng = Self.double(from: loc["longitude"]) {
                         let maxDelta = 0.0009 // ~100m
                         if abs(placeLat - latitude) > maxDelta || abs(placeLng - longitude) > maxDelta {
                             continue
@@ -332,8 +439,11 @@ struct GooglePlacesService {
             return nil
         }
         
+        var request = URLRequest(url: url)
+        request.addValue(Self.bundleIdentifier, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
+        
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(for: request)
             if let http = response as? HTTPURLResponse {
                 print("[PlacesNew] media HTTP status: \(http.statusCode)")
             }

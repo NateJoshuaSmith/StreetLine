@@ -10,7 +10,6 @@ import SwiftUI
 struct NearbySkateShopsView: View {
     let latitude: Double
     let longitude: Double
-    var radiusMeters: Double = 10000
     
     var body: some View {
         NearbyPlacesListView(
@@ -20,7 +19,6 @@ struct NearbySkateShopsView: View {
             emptyIcon: "storefront",
             latitude: latitude,
             longitude: longitude,
-            radiusMeters: radiusMeters,
             load: { lat, lng, radius in
                 await GooglePlacesService().fetchNearbySkateShops(
                     latitude: lat,
@@ -33,5 +31,5 @@ struct NearbySkateShopsView: View {
 }
 
 #Preview {
-    NearbySkateShopsView(latitude: 37.7749, longitude: -122.4194, radiusMeters: 10000)
+    NearbySkateShopsView(latitude: 37.7749, longitude: -122.4194)
 }

@@ -14,23 +14,45 @@ struct NearbyPlacesListView: View {
     let emptyIcon: String
     let latitude: Double
     let longitude: Double
-    var radiusMeters: Double = 10000
     var load: (_ latitude: Double, _ longitude: Double, _ radiusMeters: Double) async -> [NearbyPlace]
     
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("placesNearbyRadiusMiles") private var placesRadiusMiles: Double = 10
     @State private var places: [NearbyPlace] = []
     @State private var isLoading = true
+    
+    private let metersPerMile = 1609.34
+    private let stickerBlue = Color(red: 0.18, green: 0.78, blue: 1.0)
+    private let radiusChoices: [(label: String, miles: Double)] = [
+        ("2 mi", 2),
+        ("5 mi", 5),
+        ("10 mi", 10),
+        ("25 mi", 25),
+        ("All", 0)
+    ]
     
     private var origin: CLLocation {
         CLLocation(latitude: latitude, longitude: longitude)
     }
     
-    private var radiusLabel: String {
-        let miles = radiusMeters / 1609.34
-        if miles >= 30 {
-            return "about \(Int(miles.rounded())) miles"
+    private var includeMileage: Bool {
+        placesRadiusMiles > 0
+    }
+    
+    /// Google Places caps location bias at 50 km. `0` means All.
+    private var searchRadiusMeters: Double {
+        if placesRadiusMiles > 0 {
+            return min(placesRadiusMiles * metersPerMile, 50_000)
         }
-        return "\(max(1, Int(miles.rounded()))) miles"
+        return 50_000
+    }
+    
+    private var emptyMessage: String {
+        if includeMileage {
+            let miles = max(1, Int(placesRadiusMiles.rounded()))
+            return "Nothing turned up within \(miles) miles of you. Try All to see every listing nearby."
+        }
+        return "Google didn’t find any nearby."
     }
     
     var body: some View {
@@ -55,14 +77,18 @@ struct NearbyPlacesListView: View {
                         EmptyStateCard(
                             title: emptyTitle,
                             systemImage: emptyIcon,
-                            message: "Nothing turned up within \(radiusLabel) of you."
+                            message: emptyMessage
                         )
                     } else {
                         ScrollView(.vertical, showsIndicators: false) {
                             VStack(spacing: 12) {
                                 ForEach(places) { place in
                                     StreetlineCard {
-                                        NearbyPlaceCard(place: place, origin: origin)
+                                        NearbyPlaceCard(
+                                            place: place,
+                                            origin: origin,
+                                            showMileage: includeMileage
+                                        )
                                     }
                                 }
                             }
@@ -75,14 +101,50 @@ struct NearbyPlacesListView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                StreetlineSheetHeader(title: title, onClose: { dismiss() })
+                VStack(spacing: 10) {
+                    StreetlineSheetHeader(title: title, onClose: { dismiss() })
+                    radiusPicker
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 8)
+                }
             }
-            .task {
+            .task(id: searchRadiusMeters) {
                 isLoading = true
-                let result = await load(latitude, longitude, radiusMeters)
+                let result = await load(latitude, longitude, searchRadiusMeters)
+                let nearby = result.filter { place in
+                    origin.distance(from: CLLocation(latitude: place.latitude, longitude: place.longitude))
+                        <= searchRadiusMeters
+                }
                 await MainActor.run {
-                    places = result
+                    places = nearby
                     isLoading = false
+                }
+            }
+        }
+    }
+    
+    private var radiusPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(radiusChoices, id: \.miles) { choice in
+                    let isOn = placesRadiusMiles == choice.miles
+                    Button {
+                        placesRadiusMiles = choice.miles
+                    } label: {
+                        Text(choice.label.uppercased())
+                            .font(.caption.weight(.heavy))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(isOn ? stickerBlue : Color.white)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule().stroke(Color.black, lineWidth: 2)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(choice.miles == 0 ? "All distances" : choice.label)
+                    .accessibilityAddTraits(isOn ? .isSelected : [])
                 }
             }
         }
@@ -92,6 +154,7 @@ struct NearbyPlacesListView: View {
 private struct NearbyPlaceCard: View {
     let place: NearbyPlace
     let origin: CLLocation
+    var showMileage: Bool = true
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -100,9 +163,11 @@ private struct NearbyPlaceCard: View {
                     .font(.headline.weight(.heavy))
                     .foregroundColor(.black)
                 Spacer()
-                Text(distanceText)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.black.opacity(0.72))
+                if showMileage {
+                    Text(distanceText)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.black.opacity(0.72))
+                }
             }
             if let address = place.formattedAddress, !address.isEmpty {
                 Text(address)

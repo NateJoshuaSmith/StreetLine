@@ -185,28 +185,47 @@ struct LobbyView: View {
     private func lobbyBubble(_ message: LobbyMessage) -> some View {
         let isMine = message.senderId == currentUserId
         let rawName = message.senderUsername.trimmingCharacters(in: .whitespacesAndNewlines)
-        let name = isMine ? (currentUsername.isEmpty ? "You" : currentUsername) : (rawName.isEmpty ? "Unknown" : rawName)
-        let initial = String(name.prefix(1)).uppercased()
+        let profileName = isMine
+            ? (currentUsername.isEmpty ? (rawName.isEmpty ? "You" : rawName) : currentUsername)
+            : (rawName.isEmpty ? "Unknown" : rawName)
+        let initial = String(profileName.prefix(1)).uppercased()
         
         return HStack(alignment: .bottom, spacing: 8) {
             if isMine { Spacer(minLength: 48) }
             
             if !isMine {
-                Circle()
-                    .fill(Color.white.opacity(0.95))
-                    .frame(width: 28, height: 28)
-                    .overlay(
-                        Text(initial)
-                            .font(.caption.weight(.bold))
-                            .foregroundColor(.black)
+                NavigationLink(
+                    destination: UserProfileView(
+                        profile: UserProfile(uid: message.senderId, username: profileName)
                     )
+                ) {
+                    Circle()
+                        .fill(Color.white.opacity(0.95))
+                        .frame(width: 28, height: 28)
+                        .overlay(
+                            Text(initial)
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(.black)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open @\(profileName)'s profile")
             }
             
             VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
-                Text(isMine ? "You" : "@\(name)")
-                    .font(.caption.weight(.bold))
-                    .foregroundColor(.white)
-                    .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                NavigationLink(
+                    destination: UserProfileView(
+                        profile: UserProfile(uid: message.senderId, username: profileName)
+                    )
+                ) {
+                    Text(isMine ? "You" : "@\(profileName)")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(.white)
+                        .underline(color: .white.opacity(0.7))
+                        .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isMine ? "Open your profile" : "Open @\(profileName)'s profile")
                 
                 Text(message.text)
                     .font(.body)

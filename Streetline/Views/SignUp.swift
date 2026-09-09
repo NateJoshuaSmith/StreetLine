@@ -48,30 +48,26 @@ struct SignUp: View {
                 }
             }
         }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.subheadline.weight(.heavy))
-                        .foregroundColor(.primary)
-                        .padding(10)
-                        .background(
-                            ZStack {
-                                Circle().fill(Color.white.opacity(0.95))
-                                Circle().strokeBorder(Color.black, lineWidth: 2.5)
-                            }
-                        )
-                }
-                .disabled(isSigningUp)
-                .buttonStyle(.plain)
-                .accessibilityLabel("Back")
+        .overlay(alignment: .topLeading) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.subheadline.weight(.heavy))
+                    .foregroundColor(.black)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Color.white))
+                    .overlay(
+                        Circle().stroke(Color.black, lineWidth: 2.5)
+                    )
             }
+            .buttonStyle(.plain)
+            .disabled(isSigningUp)
+            .padding(.top, 20)
+            .padding(.leading, 16)
+            .accessibilityLabel("Close")
         }
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showContactSupport) {
             ContactSupportView.sheet
         }

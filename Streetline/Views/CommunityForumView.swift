@@ -170,22 +170,29 @@ struct CommunityForumView: View {
     @ViewBuilder
     private var content: some View {
         if let loadError, posts.isEmpty {
-            bubbleStateCard(
-                title: "Could not load community posts",
-                systemImage: "exclamationmark.triangle",
-                message: loadError
-            )
+            VStack(spacing: 12) {
+                SkateWithSafetyNote()
+                bubbleStateCard(
+                    title: "Could not load community posts",
+                    systemImage: "exclamationmark.triangle",
+                    message: loadError
+                )
+            }
         } else if visiblePosts.isEmpty {
-            bubbleStateCard(
-                title: hasPostsOutsideRadius ? "No sessions nearby" : "No one's looking yet",
-                systemImage: "person.3.sequence.fill",
-                message: hasPostsOutsideRadius
-                    ? "Widen the distance filter or post one close by."
-                    : "Tap the + button to post when and where you're skating."
-            )
+            VStack(spacing: 12) {
+                SkateWithSafetyNote()
+                bubbleStateCard(
+                    title: hasPostsOutsideRadius ? "No sessions nearby" : "No one's looking yet",
+                    systemImage: "person.3.sequence.fill",
+                    message: hasPostsOutsideRadius
+                        ? "Widen the distance filter or post one close by."
+                        : "Tap the + button to post when and where you're skating."
+                )
+            }
         } else {
             ScrollView {
                 LazyVStack(spacing: 12) {
+                    SkateWithSafetyNote()
                     ForEach(visiblePosts, id: \.id) { post in
                         NavigationLink(destination: CommunityPostDetailView(post: post)) {
                             postCard(post)
@@ -306,6 +313,34 @@ struct CommunityForumView: View {
                 loadError = message
             }
         )
+    }
+}
+
+struct SkateWithSafetyNote: View {
+    var outlined: Bool = true
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.shield.fill")
+                .font(.body.weight(.bold))
+                .foregroundColor(.black)
+            Text("Meet at a public spot. Don’t share your address. If someone feels off, report or block them.")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.black)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(outlined ? 14 : 10)
+        .frame(maxWidth: outlined ? 360 : .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: outlined ? 16 : 10, style: .continuous)
+                .fill(Color.white.opacity(outlined ? 0.95 : 1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: outlined ? 16 : 10, style: .continuous)
+                .stroke(Color.black, lineWidth: outlined ? 2.5 : 2)
+        )
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -540,6 +575,8 @@ struct SkateWithComposerView: View {
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
             }
+            
+            SkateWithSafetyNote(outlined: false)
             
             Button {
                 Task { await submit() }
