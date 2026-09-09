@@ -88,9 +88,9 @@ class UserService: ObservableObject {
     @Published var blockedUserIds: [String] = UserService.cachedBlockedIds()
     
     /// Username rules: 3–20 characters, letters/numbers/underscore only
-    static let usernameMinLength = 3
-    static let usernameMaxLength = 20
-    static let usernameAllowedCharacterSet = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
+    static let usernameMinLength = UsernameRules.minLength
+    static let usernameMaxLength = UsernameRules.maxLength
+    static let usernameAllowedCharacterSet = UsernameRules.allowedCharacterSet
     
     /// Create a new user profile (call after sign up)
     func createProfile(uid: String, username: String, email: String?) async throws {
@@ -217,21 +217,7 @@ class UserService: ObservableObject {
     
     /// Validate username format (length and allowed characters). Returns nil if valid, or an error message.
     func validateUsername(_ username: String) -> String? {
-        let trimmed = username.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return "Username cannot be empty"
-        }
-        if trimmed.count < Self.usernameMinLength {
-            return "Username must be at least \(Self.usernameMinLength) characters"
-        }
-        if trimmed.count > Self.usernameMaxLength {
-            return "Username must be at most \(Self.usernameMaxLength) characters"
-        }
-        let allowed = Self.usernameAllowedCharacterSet
-        guard trimmed.unicodeScalars.allSatisfy({ allowed.contains($0) }) else {
-            return "Use only letters, numbers, and underscores"
-        }
-        return nil
+        UsernameRules.validate(username)
     }
     
     /// Returns true if the username is available (no other user has it, or only the current user has it).

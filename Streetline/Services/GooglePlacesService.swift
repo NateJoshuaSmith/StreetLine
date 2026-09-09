@@ -78,7 +78,7 @@ struct GooglePlacesService {
             latitude: latitude,
             longitude: longitude,
             radiusMeters: radiusMeters,
-            include: Self.isSkateShop
+            include: NearbyPlaceRules.isSkateShop
         )
     }
     
@@ -89,7 +89,7 @@ struct GooglePlacesService {
             latitude: latitude,
             longitude: longitude,
             radiusMeters: radiusMeters,
-            include: Self.isSkatePark
+            include: NearbyPlaceRules.isSkatePark
         )
     }
     
@@ -106,7 +106,7 @@ struct GooglePlacesService {
             longitude: longitude,
             radiusMeters: radiusMeters
         )
-        let googleFiltered = placesWithinRadius(
+        let googleFiltered = NearbyPlaceRules.placesWithinRadius(
             google.filter(include),
             latitude: latitude,
             longitude: longitude,
@@ -122,7 +122,7 @@ struct GooglePlacesService {
             longitude: longitude,
             radiusMeters: radiusMeters
         )
-        let appleFiltered = placesWithinRadius(
+        let appleFiltered = NearbyPlaceRules.placesWithinRadius(
             apple.filter(include),
             latitude: latitude,
             longitude: longitude,
@@ -130,26 +130,6 @@ struct GooglePlacesService {
         )
         print("[PlacesNew] \(query): Google empty/filtered, Apple Maps fallback \(appleFiltered.count) inside \(Int(radiusMeters))m")
         return appleFiltered
-    }
-    
-    private func placesWithinRadius(
-        _ places: [NearbyPlace],
-        latitude: Double,
-        longitude: Double,
-        radiusMeters: Double
-    ) -> [NearbyPlace] {
-        let origin = CLLocation(latitude: latitude, longitude: longitude)
-        let limit = min(max(radiusMeters, 1), 50_000)
-        return places
-            .filter { place in
-                let here = CLLocation(latitude: place.latitude, longitude: place.longitude)
-                return origin.distance(from: here) <= limit
-            }
-            .sorted { lhs, rhs in
-                let left = CLLocation(latitude: lhs.latitude, longitude: lhs.longitude)
-                let right = CLLocation(latitude: rhs.latitude, longitude: rhs.longitude)
-                return origin.distance(from: left) < origin.distance(from: right)
-            }
     }
     
     private func searchTextPlaces(
@@ -216,58 +196,6 @@ struct GooglePlacesService {
         }
     }
     
-    /// Drop surf shops and other lookalikes that Places lumps in with skate.
-    private static func isSkateShop(_ place: NearbyPlace) -> Bool {
-        let text = "\(place.name) \(place.formattedAddress ?? "")".lowercased()
-        if isSurfOnly(text) { return false }
-        if text.contains("snowboard") && !containsSkateTerm(text) { return false }
-        return true
-    }
-    
-    private static func isSkatePark(_ place: NearbyPlace) -> Bool {
-        let name = place.name.lowercased()
-        if name.contains("parking") && !containsSkateTerm(name) { return false }
-        if isGenericParkName(name) { return false }
-        return containsSkateTerm(name)
-    }
-    
-    /// City / national / dog parks that Places returns for a "skate park" search.
-    private static func isGenericParkName(_ name: String) -> Bool {
-        let generic = [
-            "national park",
-            "state park",
-            "regional park",
-            "county park",
-            "city park",
-            "neighborhood park",
-            "community park",
-            "dog park",
-            "amusement park",
-            "theme park",
-            "water park",
-            "industrial park",
-            "business park",
-            "office park",
-            "rv park",
-            "mobile home park",
-            "playground"
-        ]
-        return generic.contains { name.contains($0) }
-    }
-    
-    private static func isSurfOnly(_ text: String) -> Bool {
-        containsSurfTerm(text) && !containsSkateTerm(text)
-    }
-    
-    private static func containsSkateTerm(_ text: String) -> Bool {
-        text.contains("skate") || text.contains("skateboard")
-    }
-    
-    private static func containsSurfTerm(_ text: String) -> Bool {
-        text.contains("surfboard") || text.contains("surfing") || text.contains("surf shop")
-            || text.range(of: #"\bsurf(s|y)?\b"#, options: .regularExpression) != nil
-    }
-    
     private func mapKitPlaces(
         query: String,
         latitude: Double,
@@ -314,8 +242,8 @@ struct GooglePlacesService {
         let name = (place["displayName"] as? [String: Any])?["text"] as? String ?? "Unknown"
         let address = place["formattedAddress"] as? String
         guard let loc = place["location"] as? [String: Any],
-              let lat = Self.double(from: loc["latitude"]),
-              let lng = Self.double(from: loc["longitude"]) else {
+              let lat = NearbyPlaceRules.double(from: loc["latitude"]),
+              let lng = NearbyPlaceRules.double(from: loc["longitude"]) else {
             return nil
         }
         return NearbyPlace(
@@ -325,13 +253,6 @@ struct GooglePlacesService {
             latitude: lat,
             longitude: lng
         )
-    }
-    
-    private static func double(from value: Any?) -> Double? {
-        if let number = value as? Double { return number }
-        if let number = value as? NSNumber { return number.doubleValue }
-        if let text = value as? String { return Double(text) }
-        return nil
     }
     
     private func placesPOSTRequest(url: URL, apiKey: String, fieldMask: String) -> URLRequest {
@@ -420,8 +341,8 @@ struct GooglePlacesService {
                     }
                     // Optional distance filter: if place has location, only use if within ~100m
                     if let loc = place["location"] as? [String: Any],
-                       let placeLat = Self.double(from: loc["latitude"]),
-                       let placeLng = Self.double(from: loc["longitude"]) {
+                       let placeLat = NearbyPlaceRules.double(from: loc["latitude"]),
+                       let placeLng = NearbyPlaceRules.double(from: loc["longitude"]) {
                         let maxDelta = 0.0009 // ~100m
                         if abs(placeLat - latitude) > maxDelta || abs(placeLng - longitude) > maxDelta {
                             continue

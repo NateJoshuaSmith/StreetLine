@@ -16,7 +16,18 @@
 /* Begin PBXFileReference section */
 		D885D4AA2ECF0C5800683727 /* Streetline.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Streetline.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8A11C012F80000100D7477F /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		D8E8A0012F90000100D7477F /* StreetlineTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StreetlineTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXContainerItemProxy section */
+		D8E8A0052F90000100D7477F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D885D4A22ECF0C5800683727 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D885D4A92ECF0C5800683727;
+			remoteInfo = Streetline;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		D8E7D5E02F62133800D7477F /* Exceptions for "Streetline" folder in "Streetline" target */ = {
@@ -37,6 +48,11 @@
 			path = Streetline;
 			sourceTree = "<group>";
 		};
+		D8E8A0022F90000100D7477F /* StreetlineTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = StreetlineTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +67,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D8E8A0092F90000100D7477F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -59,6 +82,7 @@
 			children = (
 				D8A11C012F80000100D7477F /* Config.xcconfig */,
 				D885D4AC2ECF0C5800683727 /* Streetline */,
+				D8E8A0022F90000100D7477F /* StreetlineTests */,
 				D885D4AB2ECF0C5800683727 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -67,6 +91,7 @@
 			isa = PBXGroup;
 			children = (
 				D885D4AA2ECF0C5800683727 /* Streetline.app */,
+				D8E8A0012F90000100D7477F /* StreetlineTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -100,6 +125,29 @@
 			productReference = D885D4AA2ECF0C5800683727 /* Streetline.app */;
 			productType = "com.apple.product-type.application";
 		};
+		D8E8A0032F90000100D7477F /* StreetlineTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D8E8A0062F90000100D7477F /* Build configuration list for PBXNativeTarget "StreetlineTests" */;
+			buildPhases = (
+				D8E8A00A2F90000100D7477F /* Sources */,
+				D8E8A0092F90000100D7477F /* Frameworks */,
+				D8E8A00B2F90000100D7477F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D8E8A0042F90000100D7477F /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D8E8A0022F90000100D7477F /* StreetlineTests */,
+			);
+			name = StreetlineTests;
+			packageProductDependencies = (
+			);
+			productName = StreetlineTests;
+			productReference = D8E8A0012F90000100D7477F /* StreetlineTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -112,6 +160,10 @@
 				TargetAttributes = {
 					D885D4A92ECF0C5800683727 = {
 						CreatedOnToolsVersion = 26.1.1;
+					};
+					D8E8A0032F90000100D7477F = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = D885D4A92ECF0C5800683727;
 					};
 				};
 			};
@@ -133,12 +185,20 @@
 			projectRoot = "";
 			targets = (
 				D885D4A92ECF0C5800683727 /* Streetline */,
+				D8E8A0032F90000100D7477F /* StreetlineTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		D885D4A82ECF0C5800683727 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8E8A00B2F90000100D7477F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -155,7 +215,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D8E8A00A2F90000100D7477F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D8E8A0042F90000100D7477F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D885D4A92ECF0C5800683727 /* Streetline */;
+			targetProxy = D8E8A0052F90000100D7477F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		D885D4B32ECF0C5800683727 /* Debug */ = {
@@ -349,6 +424,50 @@
 			};
 			name = Release;
 		};
+		D8E8A0072F90000100D7477F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Streetline.StreetlineTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Streetline.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Streetline";
+			};
+			name = Debug;
+		};
+		D8E8A0082F90000100D7477F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Streetline.StreetlineTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Streetline.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Streetline";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -366,6 +485,15 @@
 			buildConfigurations = (
 				D885D4B62ECF0C5800683727 /* Debug */,
 				D885D4B72ECF0C5800683727 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D8E8A0062F90000100D7477F /* Build configuration list for PBXNativeTarget "StreetlineTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D8E8A0072F90000100D7477F /* Debug */,
+				D8E8A0082F90000100D7477F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
