@@ -8,7 +8,8 @@
 import Foundation
 import FirebaseFirestore
 
-struct UserProfile: Codable {
+struct UserProfile: Codable, Hashable, Identifiable {
+    var id: String { uid }
     var uid: String
     var username: String
     var email: String?
@@ -48,5 +49,13 @@ struct UserProfile: Codable {
         self.skillLevel = skillLevel
         self.favoriteTrick = favoriteTrick
         self.favoriteSkater = favoriteSkater
+    }
+    
+    static func == (lhs: UserProfile, rhs: UserProfile) -> Bool {
+        lhs.uid == rhs.uid
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(uid)
     }
 }

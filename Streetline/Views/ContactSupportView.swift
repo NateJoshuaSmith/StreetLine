@@ -59,7 +59,7 @@ struct ContactSupportView: View {
     }
     
     private var cityBackdrop: some View {
-        ArtBackdrop(imageName: "CityImage")
+        ArtBackdrop(imageName: "CityImage", starBand: .logo)
     }
     
     private var contactCard: some View {

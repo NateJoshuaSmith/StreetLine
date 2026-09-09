@@ -54,179 +54,88 @@ struct UserProfileView: View {
         return formatter.string(from: createdAt)
     }
     
+    private let actionBlue = Color(red: 0.08, green: 0.32, blue: 0.78)
+    private let actionGreen = Color(red: 0.12, green: 0.62, blue: 0.38)
+    private let inkMuted = Color.black.opacity(0.72)
+    
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Avatar
-                avatarView
-                    .padding(.top, 24)
-                
-                // Username + basic info
-                VStack(spacing: 8) {
-                    Text(displayProfile.username)
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
+        ZStack {
+            ArtBackdrop(imageName: "FriendsBackground", dim: 0.42, starBand: .header)
+            
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 14) {
+                    identityCard
                     
-                    if let email = displayProfile.email, !email.isEmpty, isCurrentUser {
-                        Text(email)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    if let join = formattedJoinDate {
-                        Text("Member since \(join)")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    if isCurrentUser {
-                        Text("This is your profile")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundColor(.blue)
-                    }
-                    
-                    if displayProfile.hasSkateDetails {
-                        skateDetailsCard
-                    } else if isCurrentUser {
-                        Text("Add age, skill, and favorites in Settings → Skate profile")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                }
-                .padding(.horizontal)
-                
-                if isLoadingProfile {
-                    ProgressView("Loading profile...")
-                } else if let profileLoadError {
-                    Text(profileLoadError)
-                        .font(.footnote)
-                        .foregroundColor(.red)
-                        .padding(.horizontal)
-                }
-
-                if !isCurrentUser {
-                    VStack(spacing: 12) {
-                        if isBlocked {
-                            Text("You blocked this user. Their posts, comments, and messages are hidden.")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
-                        } else {
-                            NavigationLink(destination: ConversationView(friendProfile: displayProfile)) {
-                                Label("Message", systemImage: "bubble.left.and.bubble.right.fill")
-                                    .font(.headline)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(Color.blue)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(12)
+                    if isLoadingProfile {
+                        profileCard {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                    .tint(.black)
+                                Text("Loading profile...")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundColor(.black)
                             }
-                            .buttonStyle(.plain)
-                            
-                            Button {
-                                Task { await sendFriendRequest() }
-                            } label: {
-                                if isFriend {
-                                    Label("Already friends", systemImage: "checkmark.circle.fill")
-                                } else if hasPendingSent {
-                                    Label("Request sent", systemImage: "clock.fill")
-                                } else if isSendingRequest {
-                                    ProgressView()
-                                        .tint(.white)
-                                } else {
-                                    Label("Add friend", systemImage: "person.badge.plus")
+                            .frame(maxWidth: .infinity)
+                        }
+                    } else if let profileLoadError {
+                        Text(profileLoadError)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundColor(.red)
+                    }
+                    
+                    if !isCurrentUser {
+                        actionsCard
+                    }
+                    
+                    profileCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            sectionTitle("SKATE WITH (\(userCommunityPosts.count))")
+                            if userCommunityPosts.isEmpty {
+                                emptyLine("No sessions yet.")
+                            } else {
+                                ForEach(userCommunityPosts.prefix(8), id: \.id) { post in
+                                    communityPostRow(post)
                                 }
                             }
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(
-                                (isFriend || hasPendingSent || isSendingRequest) ? Color.gray : Color.green
-                            )
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
-                            .disabled(isFriend || hasPendingSent || isSendingRequest)
                         }
-                        
-                        Button {
-                            showReportUser = true
-                        } label: {
-                            Label("Report", systemImage: "flag")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                        }
-                        .buttonStyle(.bordered)
-                        
-                        Button(role: .destructive) {
-                            if isBlocked {
-                                Task { await unblockUser() }
+                    }
+                    
+                    profileCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            sectionTitle("SPOTS ADDED (\(userSpots.count))")
+                            if userSpots.isEmpty {
+                                emptyLine("No skate spots added yet.")
                             } else {
-                                showBlockConfirm = true
+                                ForEach(userSpots.prefix(8), id: \.id) { spot in
+                                    spotRow(spot)
+                                }
                             }
-                        } label: {
-                            Label(isBlocked ? "Unblock" : "Block", systemImage: isBlocked ? "hand.raised.slash" : "hand.raised")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                        }
-                        
-                        if let error = requestError ?? safetyError {
-                            Text(error)
-                                .font(.footnote)
-                                .foregroundColor(.red)
-                        }
-                        
-                        if !isBlocked {
-                            Text("You can start a conversation or manage friendship from the Friends screen.")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-
-                VStack(spacing: 12) {
-                    contentHeader(title: "Skate With (\(userCommunityPosts.count))")
-                    if userCommunityPosts.isEmpty {
-                        emptyBubble(text: "No sessions yet.")
-                    } else {
-                        ForEach(userCommunityPosts.prefix(8), id: \.id) { post in
-                            communityPostRow(post)
                         }
                     }
                 }
-                .padding(.horizontal)
-                
-                VStack(spacing: 12) {
-                    contentHeader(title: "Spots Added (\(userSpots.count))")
-                    if userSpots.isEmpty {
-                        emptyBubble(text: "No skate spots added yet.")
-                    } else {
-                        ForEach(userSpots.prefix(8), id: \.id) { spot in
-                            spotRow(spot)
-                        }
-                    }
-                }
-                .padding(.horizontal)
-                
-                Spacer(minLength: 0)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 32)
             }
         }
-        .background(
-            LinearGradient(
-                colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.05)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-        )
-        .navigationTitle("Profile")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(displayProfile.username.isEmpty ? "Profile" : displayProfile.username)
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(.black)
+                    .lineLimit(1)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        ZStack {
+                            Capsule().fill(Color.white)
+                            Capsule().strokeBorder(Color.black, lineWidth: 2.5)
+                        }
+                    )
+            }
+        }
         .task {
             await userService.loadFriends()
             await userService.loadPendingSent()
@@ -258,43 +167,189 @@ struct UserProfileView: View {
         }
     }
     
-    private var skateDetailsCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let age = displayProfile.age {
-                detailRow(title: "Age", value: "\(age)")
+    private func profileCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .frame(maxWidth: 400, alignment: .leading)
+            .padding(18)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.22), radius: 20, y: 8)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(Color.black, lineWidth: 2.5)
+            )
+            .frame(maxWidth: .infinity)
+    }
+    
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.heavy))
+            .tracking(0.6)
+            .foregroundColor(.black)
+    }
+    
+    private func emptyLine(_ text: String) -> some View {
+        Text(text)
+            .font(.subheadline.weight(.semibold))
+            .foregroundColor(inkMuted)
+    }
+    
+    private func stickerButton(title: String, systemImage: String, fill: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.heavy))
+            Text(title)
+                .font(.subheadline.weight(.heavy))
+        }
+        .foregroundColor(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(fill)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.black, lineWidth: 2.5)
+        )
+    }
+    
+    private var identityCard: some View {
+        profileCard {
+            VStack(spacing: 12) {
+                avatarView
+                
+                Text(displayProfile.username)
+                    .font(.title3.weight(.heavy))
+                    .tracking(0.4)
+                    .foregroundColor(.black)
+                
+                if let email = displayProfile.email, !email.isEmpty, isCurrentUser {
+                    Text(email)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(inkMuted)
+                }
+                
+                if let join = formattedJoinDate {
+                    Text("Member since \(join)")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(inkMuted)
+                }
+                
+                if isCurrentUser {
+                    Text("This is your profile")
+                        .font(.footnote.weight(.heavy))
+                        .foregroundColor(.black)
+                }
+                
+                if displayProfile.hasSkateDetails {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let age = displayProfile.age {
+                            detailRow(title: "Age", value: "\(age)")
+                        }
+                        if let skill = displayProfile.skillLevel, !skill.isEmpty {
+                            detailRow(title: "Skill", value: skill)
+                        }
+                        if let trick = displayProfile.favoriteTrick, !trick.isEmpty {
+                            detailRow(title: "Favorite trick", value: trick)
+                        }
+                        if let skater = displayProfile.favoriteSkater, !skater.isEmpty {
+                            detailRow(title: "Favorite skater", value: skater)
+                        }
+                    }
+                    .padding(.top, 4)
+                } else if isCurrentUser {
+                    Text("Add age, skill, and favorites in Settings → Skate profile")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(inkMuted)
+                        .multilineTextAlignment(.center)
+                }
             }
-            if let skill = displayProfile.skillLevel, !skill.isEmpty {
-                detailRow(title: "Skill", value: skill)
-            }
-            if let trick = displayProfile.favoriteTrick, !trick.isEmpty {
-                detailRow(title: "Favorite trick", value: trick)
-            }
-            if let skater = displayProfile.favoriteSkater, !skater.isEmpty {
-                detailRow(title: "Favorite skater", value: skater)
+            .frame(maxWidth: .infinity)
+        }
+    }
+    
+    private var actionsCard: some View {
+        profileCard {
+            VStack(spacing: 10) {
+                if isBlocked {
+                    Text("You blocked this user. Their posts, comments, and messages are hidden.")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.black)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    NavigationLink(destination: ConversationView(friendProfile: displayProfile)) {
+                        stickerButton(title: "MESSAGE", systemImage: "bubble.left.and.bubble.right.fill", fill: actionBlue)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        Task { await sendFriendRequest() }
+                    } label: {
+                        if isSendingRequest {
+                            ProgressView()
+                                .tint(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color.gray)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(Color.black, lineWidth: 2.5)
+                                )
+                        } else if isFriend {
+                            stickerButton(title: "ALREADY FRIENDS", systemImage: "checkmark.circle.fill", fill: Color.gray)
+                        } else if hasPendingSent {
+                            stickerButton(title: "REQUEST SENT", systemImage: "clock.fill", fill: Color.gray)
+                        } else {
+                            stickerButton(title: "ADD FRIEND", systemImage: "person.badge.plus", fill: actionGreen)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isFriend || hasPendingSent || isSendingRequest)
+                }
+                
+                Button {
+                    showReportUser = true
+                } label: {
+                    stickerButton(title: "REPORT", systemImage: "flag", fill: Color(red: 0.95, green: 0.55, blue: 0.12))
+                }
+                .buttonStyle(.plain)
+                
+                Button {
+                    if isBlocked {
+                        Task { await unblockUser() }
+                    } else {
+                        showBlockConfirm = true
+                    }
+                } label: {
+                    stickerButton(
+                        title: isBlocked ? "UNBLOCK" : "BLOCK",
+                        systemImage: isBlocked ? "hand.raised.slash" : "hand.raised",
+                        fill: Color.red
+                    )
+                }
+                .buttonStyle(.plain)
+                
+                if let error = requestError ?? safetyError {
+                    Text(error)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.red)
+                }
             }
         }
-        .padding(14)
-        .frame(maxWidth: 360, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.95))
-                .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.black.opacity(0.1), lineWidth: 1)
-        )
     }
     
     private func detailRow(title: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.secondary)
+                .font(.subheadline.weight(.heavy))
+                .foregroundColor(inkMuted)
             Spacer(minLength: 8)
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(.primary)
+                .foregroundColor(.black)
                 .multilineTextAlignment(.trailing)
         }
     }
@@ -314,88 +369,52 @@ struct UserProfileView: View {
             }
             .frame(width: 96, height: 96)
             .clipShape(Circle())
-            .shadow(radius: 6)
+            .overlay(Circle().stroke(Color.black, lineWidth: 2.5))
         } else {
             avatarPlaceholder
                 .frame(width: 96, height: 96)
                 .clipShape(Circle())
-                .shadow(radius: 6)
+                .overlay(Circle().stroke(Color.black, lineWidth: 2.5))
         }
     }
     
     private var avatarPlaceholder: some View {
         Circle()
-            .fill(
-                LinearGradient(
-                    colors: [.blue, .purple],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
+            .fill(actionBlue)
             .overlay(
                 Image(systemName: "person.fill")
                     .foregroundColor(.white)
-                    .font(.title)
+                    .font(.title.weight(.heavy))
             )
-    }
-    
-    private func contentHeader(title: String) -> some View {
-        HStack {
-            Text(title)
-                .font(.headline)
-                .foregroundColor(.primary)
-            Spacer()
-        }
-    }
-    
-    private func emptyBubble(text: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "text.bubble")
-                .font(.body.weight(.bold))
-                .foregroundColor(.black)
-            Text(text)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.black)
-            Spacer()
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.black, lineWidth: 2)
-        )
     }
     
     private func communityPostRow(_ post: CommunityPost) -> some View {
         NavigationLink(destination: CommunityPostDetailView(post: post)) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(post.formattedWhen)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.primary)
+                    .font(.subheadline.weight(.heavy))
+                    .foregroundColor(.black)
                 if let whereText = post.displayWhere {
                     Text(whereText)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(inkMuted)
                         .lineLimit(1)
                 }
                 if !post.text.isEmpty {
                     Text(post.text)
-                        .font(.subheadline)
-                        .foregroundColor(.primary)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(.black)
                         .lineLimit(2)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.95))
-                    .shadow(color: .black.opacity(0.12), radius: 5, x: 0, y: 2)
+            .background(Color.white)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.black, lineWidth: 2)
             )
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -403,23 +422,27 @@ struct UserProfileView: View {
     private func spotRow(_ spot: SkateSpot) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(spot.name)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.primary)
-            Text(spot.comment)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .lineLimit(2)
+                .font(.subheadline.weight(.heavy))
+                .foregroundColor(.black)
+            let comment = spot.comment.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !comment.isEmpty, comment.caseInsensitiveCompare("No comment") != .orderedSame {
+                Text(comment)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(inkMuted)
+                    .lineLimit(2)
+            }
             Text(spot.createdAt.formatted(date: .abbreviated, time: .shortened))
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(inkMuted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.95))
-                .shadow(color: .black.opacity(0.12), radius: 5, x: 0, y: 2)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.black, lineWidth: 2)
         )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 

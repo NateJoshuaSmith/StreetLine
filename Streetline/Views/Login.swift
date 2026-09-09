@@ -60,7 +60,7 @@ struct Login: View {
     }
     
     private var cityBackdrop: some View {
-        ArtBackdrop(imageName: "CityImage")
+        ArtBackdrop(imageName: "CityImage", starBand: .logo)
     }
     
     private var loginForm: some View {

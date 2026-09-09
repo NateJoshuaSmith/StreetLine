@@ -55,7 +55,7 @@ struct CommunityForumView: View {
     
     var body: some View {
         ZStack {
-            ArtBackdrop(imageName: "PostsBackground", dim: 0.28)
+            ArtBackdrop(imageName: "PostsBackground", dim: 0.28, starBand: .headerRaised)
             
             content
                 .padding(.horizontal)
@@ -368,67 +368,29 @@ struct SkateWithComposerView: View {
         return !sessionWhat.isEmpty && hasPlace && !isSubmitting
     }
     
+    private let stickerBlue = Color(red: 0.18, green: 0.78, blue: 1.0)
+    private let actionBlue = Color(red: 0.08, green: 0.32, blue: 0.78)
+    private let inkMuted = Color.black.opacity(0.72)
+    
     var body: some View {
-        NavigationView {
-            Form {
-                Section("When") {
-                    DatePicker(
-                        "Session time",
-                        selection: $sessionAt,
-                        in: Date()...,
-                        displayedComponents: [.date, .hourAndMinute]
-                    )
-                    Text("This hides 24 hours after the session time.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+        NavigationStack {
+            ZStack {
+                ArtBackdrop(imageName: "PostsBackground", dim: 0.28, starBand: .header)
                 
-                Section("Where") {
-                    Picker("Spot", selection: $selectedSpotId) {
-                        Text("Type a place instead").tag(Optional<String>.none)
-                        ForEach(nearbySpots) { spot in
-                            Text(spot.name).tag(spot.id)
-                        }
+                ScrollView(.vertical, showsIndicators: false) {
+                    StreetlineCard {
+                        composerCard
                     }
-                    if selectedSpotId == nil {
-                        TextField("Place name", text: $locationText)
-                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 32)
                 }
-                
-                Section("What") {
-                    Picker("Type", selection: $sessionWhat) {
-                        ForEach(CommunityPost.sessionTypes, id: \.self) { type in
-                            Text(type).tag(type)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                }
-                
-                Section("Details (optional)") {
-                    TextEditor(text: $details)
-                        .frame(minHeight: 80)
-                }
-                
-                if let submitError {
-                    Section {
-                        Text(submitError)
-                            .font(.footnote)
-                            .foregroundColor(.red)
-                    }
-                }
+                .scrollDismissesKeyboard(.interactively)
             }
-            .navigationTitle("New session")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
-                        .disabled(isSubmitting)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(isSubmitting ? "Posting..." : "Post") {
-                        Task { await submit() }
-                    }
-                    .disabled(!canPost)
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StreetlineSheetHeader(title: "New session", closeDisabled: isSubmitting) {
+                    dismiss()
                 }
             }
             .task {
@@ -441,6 +403,173 @@ struct SkateWithComposerView: View {
                 await spotService.fetchSpots()
             }
         }
+    }
+    
+    private var composerCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("NEW SESSION")
+                .font(.title3.weight(.heavy))
+                .tracking(1)
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity)
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text("When")
+                    .font(.caption.weight(.heavy))
+                    .foregroundColor(.black)
+                DatePicker(
+                    "Session time",
+                    selection: $sessionAt,
+                    in: Date()...,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .tint(actionBlue)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.black, lineWidth: 2)
+                )
+                Text("This hides 24 hours after the session time.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(inkMuted)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Where")
+                    .font(.caption.weight(.heavy))
+                    .foregroundColor(.black)
+                
+                Menu {
+                    Button("Type a place instead") {
+                        selectedSpotId = nil
+                    }
+                    ForEach(nearbySpots) { spot in
+                        Button(spot.name) {
+                            selectedSpotId = spot.id
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Text(selectedSpot?.name ?? "Type a place instead")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.black)
+                            .lineLimit(1)
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(.black)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.black, lineWidth: 2)
+                    )
+                }
+                .buttonStyle(.plain)
+                
+                if selectedSpotId == nil {
+                    TextField("Place name", text: $locationText)
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.black, lineWidth: 2)
+                        )
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text("What")
+                    .font(.caption.weight(.heavy))
+                    .foregroundColor(.black)
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    ForEach(CommunityPost.sessionTypes, id: \.self) { type in
+                        Button {
+                            sessionWhat = type
+                        } label: {
+                            Text(type)
+                                .font(.caption.weight(.heavy))
+                                .foregroundColor(.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(sessionWhat == type ? stickerBlue : Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(Color.black, lineWidth: 2)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Details (optional)")
+                    .font(.caption.weight(.heavy))
+                    .foregroundColor(.black)
+                TextField("Anything else", text: $details, axis: .vertical)
+                    .lineLimit(3...6)
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.black, lineWidth: 2)
+                    )
+            }
+            
+            if let submitError {
+                Text(submitError)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+            }
+            
+            Button {
+                Task { await submit() }
+            } label: {
+                HStack(spacing: 8) {
+                    if isSubmitting {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "paperplane.fill")
+                            .font(.subheadline.weight(.heavy))
+                    }
+                    Text(isSubmitting ? "POSTING..." : "POST")
+                        .font(.subheadline.weight(.heavy))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(canPost ? actionBlue : Color.gray.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.black, lineWidth: 2.5)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(!canPost)
+            .padding(.top, 4)
+        }
+        .environment(\.colorScheme, .light)
     }
     
     private func submit() async {

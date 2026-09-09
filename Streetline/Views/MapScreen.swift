@@ -44,8 +44,8 @@ struct MapScreen: View {
         )
     )
     @State private var showAddSpotSheet = false
-    @State private var showNearbyShops = false
-    @State private var showNearbyParks = false
+    @State private var showSkateShopsSheet = false
+    @State private var showSkateParksSheet = false
     @State private var nearbyShops: [NearbyPlace] = []
     @State private var nearbyParks: [NearbyPlace] = []
     @State private var selectedNearbyPlace: MapPlacePin?
@@ -109,14 +109,8 @@ struct MapScreen: View {
     }
     
     private var visibleMapPlaces: [MapPlacePin] {
-        var items: [MapPlacePin] = []
-        if showNearbyShops {
-            items += nearbyShops.map { MapPlacePin(place: $0, kind: .shop) }
-        }
-        if showNearbyParks {
-            items += nearbyParks.map { MapPlacePin(place: $0, kind: .park) }
-        }
-        return items
+        nearbyShops.map { MapPlacePin(place: $0, kind: .shop) }
+            + nearbyParks.map { MapPlacePin(place: $0, kind: .park) }
     }
     
     private var nearbySearchRadiusMeters: Double {
@@ -406,24 +400,6 @@ struct MapScreen: View {
         .accessibilityLabel(pin.place.name)
     }
     
-    private func toggleNearbyShops() {
-        showNearbyShops.toggle()
-        if showNearbyShops {
-            Task { await loadNearbyShops() }
-        } else if selectedNearbyPlace?.kind == .shop {
-            selectedNearbyPlace = nil
-        }
-    }
-    
-    private func toggleNearbyParks() {
-        showNearbyParks.toggle()
-        if showNearbyParks {
-            Task { await loadNearbyParks() }
-        } else if selectedNearbyPlace?.kind == .park {
-            selectedNearbyPlace = nil
-        }
-    }
-    
     private func loadNearbyShops() async {
         let coord = placesSearchCoordinate
         let result = await placesService.fetchNearbySkateShops(
@@ -445,8 +421,8 @@ struct MapScreen: View {
     }
     
     private func reloadVisibleNearbyPlaces() async {
-        if showNearbyShops { await loadNearbyShops() }
-        if showNearbyParks { await loadNearbyParks() }
+        await loadNearbyShops()
+        await loadNearbyParks()
     }
     
     private func openDirections(for place: NearbyPlace) {
@@ -529,7 +505,8 @@ struct MapScreen: View {
                 }
             }
             
-            if !spot.comment.isEmpty {
+            if !spot.comment.isEmpty,
+               spot.comment.caseInsensitiveCompare("No comment") != .orderedSame {
                 Text(spot.comment)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -901,12 +878,12 @@ struct MapScreen: View {
                         }
                     }
                     
-                    Button(action: toggleNearbyShops) {
-                        mapToolbarIcon("storefront.fill", color: .orange, isOn: showNearbyShops)
+                    Button(action: { showSkateShopsSheet = true }) {
+                        mapToolbarIcon("storefront.fill", color: .orange)
                     }
                     
-                    Button(action: toggleNearbyParks) {
-                        mapToolbarIcon("figure.skateboarding", color: .green, isOn: showNearbyParks)
+                    Button(action: { showSkateParksSheet = true }) {
+                        mapToolbarIcon("figure.skateboarding", color: .green)
                     }
                     
                     NavigationLink(destination: FavoritesListView()) {
@@ -1099,6 +1076,7 @@ struct MapScreen: View {
     private func setupTask() {
         spotService.listenToSpots()
         Task { await userService.loadFavorites() }
+        Task { await reloadVisibleNearbyPlaces() }
         if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
             locationManager.startLocationUpdates()
             if let userLocation = locationManager.location, !hasCenteredOnUserLocation,
@@ -1134,6 +1112,7 @@ struct MapScreen: View {
         hasCenteredOnUserLocation = true
         shouldCenterOnUserWhenAvailable = false
         recenterToken += 1
+        Task { await reloadVisibleNearbyPlaces() }
     }
     
     private func applyNearbyCamera(to coordinate: CLLocationCoordinate2D) {
@@ -1231,6 +1210,20 @@ struct MapScreen: View {
                 .onDisappear {
                     Task { await userService.loadFavorites() }
                 }
+        }
+        .sheet(isPresented: $showSkateShopsSheet) {
+            NearbySkateShopsView(
+                latitude: placesSearchCoordinate.latitude,
+                longitude: placesSearchCoordinate.longitude,
+                radiusMeters: nearbySearchRadiusMeters
+            )
+        }
+        .sheet(isPresented: $showSkateParksSheet) {
+            NearbySkateParksView(
+                latitude: placesSearchCoordinate.latitude,
+                longitude: placesSearchCoordinate.longitude,
+                radiusMeters: nearbySearchRadiusMeters
+            )
         }
         .sheet(item: $streetViewTarget) { target in
             StreetViewSheet(coordinate: target.coordinate, title: target.name)

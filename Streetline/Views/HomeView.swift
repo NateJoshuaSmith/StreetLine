@@ -15,7 +15,7 @@ struct HomeView: View {
     var body: some View {
         let showFriendsDot = activityService.homeBadgeCount > 0
         return ZStack {
-            ArtBackdrop(imageName: "CityImage")
+            ArtBackdrop(imageName: "CityImage", starBand: .logo)
             
             GeometryReader { geometry in
                 ScrollView(.vertical, showsIndicators: false) {

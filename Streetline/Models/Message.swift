@@ -20,4 +20,8 @@ struct Message: Identifiable, Codable {
         self.text = text
         self.createdAt = createdAt
     }
+    
+    var stableId: String {
+        id ?? "\(senderId)-\(createdAt.timeIntervalSince1970)-\(text)"
+    }
 }

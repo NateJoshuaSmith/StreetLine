@@ -17,242 +17,74 @@ struct AddSpotView: View {
     let longitude: Double
     
     @State private var spotName: String = ""
-    @State private var spotComment: String = ""
     @State private var isSaving: Bool = false
     @State private var saveError: String?
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedImageData: Data?
     @State private var applePlacePreview: UIImage?
     
-    // Tag / difficulty / fun level options
     private let allTags = ["Street", "Park", "DIY", "Ledge", "Rail", "Hubba", "Bowl", "Red Curb"]
     private let allDifficulties = ["Beginner", "Intermediate", "Advanced"]
     private let allFunLevels = ["Not fun but skateable", "Fun", "Super Fun"]
+    private let stickerBlue = Color(red: 0.18, green: 0.78, blue: 1.0)
     
     @State private var selectedTags: Set<String> = []
     @State private var selectedDifficulty: String = "Beginner"
     @State private var selectedStatus: String = "Fun"
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
-                // Light blue gradient (same as skate shops / skate parks sheets)
-                LinearGradient(
-                    colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.05)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                ArtBackdrop(imageName: "CityImage", dim: 0.22, starBand: .header)
                 
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Spot photo (optional)
-                        bubbleCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Spot Photo")
-                                    .font(.headline)
-                                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                                    Group {
-                                        if let data = selectedImageData, let uiImage = UIImage(data: data) {
-                                            Image(uiImage: uiImage)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(height: 160)
-                                                .frame(maxWidth: .infinity)
-                                                .clipped()
-                                        } else if let applePlacePreview {
-                                            Image(uiImage: applePlacePreview)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(height: 160)
-                                                .frame(maxWidth: .infinity)
-                                                .clipped()
-                                                .overlay(alignment: .bottom) {
-                                                    Text("Apple Look Around · tap to replace")
-                                                        .font(.caption2.weight(.semibold))
-                                                        .foregroundColor(.white)
-                                                        .padding(.horizontal, 8)
-                                                        .padding(.vertical, 4)
-                                                        .background(Color.black.opacity(0.55))
-                                                        .clipShape(Capsule())
-                                                        .padding(8)
-                                                }
-                                        } else {
-                                            Rectangle()
-                                                .fill(Color(.systemGray5))
-                                                .frame(height: 160)
-                                                .overlay(
-                                                    VStack(spacing: 8) {
-                                                        ProgressView()
-                                                        Text("Loading Apple place photo…")
-                                                            .font(.subheadline)
-                                                            .foregroundColor(.secondary)
-                                                    }
-                                                )
-                                        }
-                                    }
-                                    .cornerRadius(12)
-                                }
-                                .onChange(of: selectedPhotoItem) { _, newItem in
-                                    Task {
-                                        if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                                            selectedImageData = data
-                                        } else {
-                                            selectedImageData = nil
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        bubbleCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Spot Information")
-                                    .font(.headline)
-                                TextField("Spot Name", text: $spotName)
-                                    .textFieldStyle(.plain)
-                                    .padding(12)
-                                    .background(Color(.systemGray6))
-                                    .cornerRadius(10)
-                            }
-                        }
-                        
-                        bubbleCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Description")
-                                    .font(.headline)
-                                TextField("Add a comment about this spot...", text: $spotComment, axis: .vertical)
-                                    .lineLimit(5...30)
-                                    .textFieldStyle(.plain)
-                                    .padding(12)
-                                    .background(Color(.systemGray6))
-                                    .cornerRadius(10)
-                            }
-                        }
-                        
-                        bubbleCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Tags")
-                                    .font(.headline)
-                                WrapTagsView(
-                                    allTags: allTags,
-                                    selectedTags: $selectedTags
-                                )
-                            }
-                        }
-                        
-                        bubbleCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Difficulty")
-                                    .font(.headline)
-                                Picker("Difficulty", selection: $selectedDifficulty) {
-                                    ForEach(allDifficulties, id: \.self) { level in
-                                        Text(level).tag(level)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-                            }
-                        }
-                        
-                        bubbleCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Level of fun")
-                                    .font(.headline)
-                                HStack(spacing: 8) {
-                                    ForEach(allFunLevels, id: \.self) { level in
-                                        let isOn = selectedStatus == level
-                                        Text(level)
-                                            .font(.subheadline)
-                                            .multilineTextAlignment(.center)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 8)
-                                            .frame(maxWidth: .infinity)
-                                            .background(isOn ? Color.blue.opacity(0.2) : Color(.systemGray6))
-                                            .foregroundColor(isOn ? .blue : .primary)
-                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                            .onTapGesture {
-                                                selectedStatus = level
-                                            }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        if let saveError {
-                            Text(saveError)
-                                .font(.footnote)
-                                .foregroundColor(.red)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
-                        }
-                        
-                        bubbleCard {
-                            Button(action: {
-                                Task {
-                                    await saveSpot()
-                                }
-                            }) {
-                                HStack {
-                                    Spacer()
-                                    if isSaving {
-                                        ProgressView()
-                                            .tint(.white)
-                                    } else {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.headline)
-                                    }
-                                    Text(isSaving ? "Saving..." : "Save Spot")
-                                        .fontWeight(.semibold)
-                                    Spacer()
-                                }
-                                .frame(maxWidth: .infinity)
-                                .foregroundColor(.white)
-                                .padding(.vertical, 16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(
-                                            canSave
-                                                ? LinearGradient(
-                                                    colors: [.blue, .purple],
-                                                    startPoint: .leading,
-                                                    endPoint: .trailing
-                                                )
-                                                : LinearGradient(
-                                                    colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.3)],
-                                                    startPoint: .leading,
-                                                    endPoint: .trailing
-                                                )
-                                        )
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(!canSave)
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 16)
+                ScrollView(.vertical, showsIndicators: false) {
+                    addSpotCard
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        .padding(.bottom, 32)
+                        .frame(maxWidth: .infinity)
                 }
             }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("New Spot")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.95))
-                        )
-                }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 10) {
+                    Capsule()
+                        .fill(Color.white)
+                        .overlay(Capsule().stroke(Color.black, lineWidth: 2))
+                        .frame(width: 52, height: 7)
+                        .padding(.top, 8)
+                        .accessibilityHidden(true)
+                    
+                    ZStack {
+                        Text("New Spot")
+                            .font(.headline.weight(.semibold))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(titleCapsule)
+                        
+                        HStack {
+                            Button {
+                                dismiss()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.subheadline.weight(.heavy))
+                                    .foregroundColor(.black)
+                                    .frame(width: 36, height: 36)
+                                    .background(Circle().fill(Color.white))
+                                    .overlay(
+                                        Circle().stroke(Color.black, lineWidth: 2.5)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isSaving)
+                            .accessibilityLabel("Cancel")
+                            
+                            Spacer()
+                        }
                     }
-                    .foregroundColor(.blue)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 6)
                 }
             }
             .task {
@@ -263,21 +95,212 @@ struct AddSpotView: View {
         }
     }
     
-    /// Centered bubble card matching skate shops / friends list style
-    @ViewBuilder
-    private func bubbleCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        HStack {
-            Spacer(minLength: 0)
-            content()
-                .frame(maxWidth: 360, alignment: .leading)
-                .padding(14)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(0.95))
-                        .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 3)
-                )
-            Spacer(minLength: 0)
+    private var titleCapsule: some View {
+        ZStack {
+            Capsule().fill(Color.white.opacity(0.95))
+            Capsule().strokeBorder(Color.black, lineWidth: 2.5)
         }
+    }
+    
+    private var addSpotCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("NEW SPOT")
+                .font(.title3.weight(.heavy))
+                .tracking(1)
+                .frame(maxWidth: .infinity)
+            
+            photoPicker
+            
+            compactField(title: "Spot Name") {
+                TextField("Name this spot", text: $spotName)
+                    .textFieldStyle(.plain)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Tags")
+                    .font(.caption.weight(.heavy))
+                WrapTagsView(allTags: allTags, selectedTags: $selectedTags)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Difficulty")
+                    .font(.caption.weight(.heavy))
+                HStack(spacing: 8) {
+                    ForEach(allDifficulties, id: \.self) { level in
+                        choiceChip(level, isOn: selectedDifficulty == level) {
+                            selectedDifficulty = level
+                        }
+                    }
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Level of fun")
+                    .font(.caption.weight(.heavy))
+                HStack(spacing: 8) {
+                    ForEach(allFunLevels, id: \.self) { level in
+                        choiceChip(level, isOn: selectedStatus == level) {
+                            selectedStatus = level
+                        }
+                    }
+                }
+            }
+            
+            if let saveError {
+                Text(saveError)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+            }
+            
+            Button {
+                Task { await saveSpot() }
+            } label: {
+                HStack(spacing: 8) {
+                    if isSaving {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "checkmark")
+                            .font(.subheadline.weight(.heavy))
+                    }
+                    Text(isSaving ? "SAVING..." : "SAVE SPOT")
+                        .font(.subheadline.weight(.heavy))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(canSave ? stickerBlue : Color.gray.opacity(0.45))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.black, lineWidth: 2.5)
+                )
+                .shadow(color: canSave ? stickerBlue.opacity(0.7) : .clear, radius: 10, y: 3)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSave)
+            .opacity(canSave ? 1 : 0.7)
+            .padding(.top, 4)
+        }
+        .padding(18)
+        .background {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.22), radius: 20, y: 8)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.black, lineWidth: 2.5)
+        )
+        .frame(maxWidth: 400)
+        .frame(maxWidth: .infinity)
+    }
+    
+    private var photoPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Spot Photo")
+                .font(.caption.weight(.heavy))
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                Group {
+                    if let data = selectedImageData, let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 160)
+                            .frame(maxWidth: .infinity)
+                            .clipped()
+                    } else if let applePlacePreview {
+                        Image(uiImage: applePlacePreview)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 160)
+                            .frame(maxWidth: .infinity)
+                            .clipped()
+                            .overlay(alignment: .bottom) {
+                                Text("Apple Look Around · tap to replace")
+                                    .font(.caption2.weight(.heavy))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        ZStack {
+                                            Capsule().fill(Color.black.opacity(0.62))
+                                            Capsule().strokeBorder(Color.white.opacity(0.8), lineWidth: 1)
+                                        }
+                                    )
+                                    .padding(8)
+                            }
+                    } else {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.45))
+                            .frame(height: 160)
+                            .overlay(
+                                VStack(spacing: 8) {
+                                    ProgressView()
+                                        .tint(.black)
+                                    Text("Loading Apple place photo…")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(.black.opacity(0.7))
+                                }
+                            )
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.black, lineWidth: 2.5)
+                )
+            }
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                Task {
+                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                        selectedImageData = data
+                    } else {
+                        selectedImageData = nil
+                    }
+                }
+            }
+        }
+    }
+    
+    private func compactField<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.heavy))
+            content()
+                .font(.subheadline)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.black, lineWidth: 2)
+                )
+        }
+    }
+    
+    private func choiceChip(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption.weight(.heavy))
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.7)
+                .lineLimit(2)
+                .foregroundColor(.black)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(isOn ? stickerBlue : Color.white.opacity(0.85))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.black, lineWidth: 2)
+                )
+        }
+        .buttonStyle(.plain)
     }
     
     private var trimmedName: String {
@@ -305,9 +328,7 @@ struct AddSpotView: View {
                 name: trimmedName,
                 latitude: latitude,
                 longitude: longitude,
-                comment: spotComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? "No comment"
-                    : spotComment,
+                comment: "No comment",
                 imageURL: imageURL,
                 tags: selectedTags.isEmpty ? nil : Array(selectedTags),
                 difficulty: selectedDifficulty,
@@ -329,17 +350,15 @@ struct AddSpotView: View {
     )
 }
 
-// Simple wrapping layout for tag chips
 private struct WrapTagsView: View {
     let allTags: [String]
     @Binding var selectedTags: Set<String>
     
-    // Precompute rows of tags (plain Swift, no ViewBuilder)
+    private let stickerBlue = Color(red: 0.18, green: 0.78, blue: 1.0)
+    
     private var rows: [[String]] {
         var currentRow: [String] = []
         var result: [[String]] = []
-        
-        // Very simple wrapping: break rows every 3 items
         for tag in allTags {
             currentRow.append(tag)
             if currentRow.count == 3 {
@@ -359,20 +378,26 @@ private struct WrapTagsView: View {
                 HStack(spacing: 8) {
                     ForEach(row, id: \.self) { tag in
                         let isOn = selectedTags.contains(tag)
-                        Text(tag)
-                            .font(.subheadline)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(isOn ? Color.blue.opacity(0.2) : Color(.systemGray6))
-                            .foregroundColor(isOn ? .blue : .primary)
-                            .clipShape(Capsule())
-                            .onTapGesture {
-                                if isOn {
-                                    selectedTags.remove(tag)
-                                } else {
-                                    selectedTags.insert(tag)
-                                }
+                        Button {
+                            if isOn {
+                                selectedTags.remove(tag)
+                            } else {
+                                selectedTags.insert(tag)
                             }
+                        } label: {
+                            Text(tag)
+                                .font(.caption.weight(.heavy))
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .frame(maxWidth: .infinity)
+                                .background(isOn ? stickerBlue : Color.white.opacity(0.85))
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule().stroke(Color.black, lineWidth: 2)
+                                )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }

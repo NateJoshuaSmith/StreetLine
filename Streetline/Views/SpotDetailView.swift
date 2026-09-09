@@ -42,6 +42,9 @@ struct SpotDetailView: View {
     @State private var isSubmittingRating = false
     @State private var showClipsSheet = false
     
+    private let stickerBlue = Color(red: 0.08, green: 0.32, blue: 0.78)
+    private let inkMuted = Color.black.opacity(0.75)
+    
     // Check if current user owns this spot
     private var isOwner: Bool {
         guard let currentUserId = Auth.auth().currentUser?.uid else {
@@ -114,6 +117,11 @@ struct SpotDetailView: View {
         commentService.comments.filter { !UserService.isUserBlocked($0.createdBy) }
     }
     
+    private var hasSpotDescription: Bool {
+        let text = spot.comment.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !text.isEmpty && text.caseInsensitiveCompare("No comment") != .orderedSame
+    }
+    
     private var showCommentReport: Binding<Bool> {
         Binding(
             get: { commentToReport != nil },
@@ -133,7 +141,7 @@ struct SpotDetailView: View {
             VStack(spacing: 20) {
                 Text("Choose a photo for this spot")
                     .font(.headline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.black)
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                     Label("Choose from library", systemImage: "photo.on.rectangle.angled")
                         .font(.headline)
@@ -158,37 +166,81 @@ struct SpotDetailView: View {
     }
     
     private func detailCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        HStack {
-            Spacer(minLength: 0)
-            content()
-                .frame(maxWidth: 360, alignment: .leading)
-                .padding(20)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                )
-            Spacer(minLength: 0)
+        content()
+            .frame(maxWidth: 400, alignment: .leading)
+            .padding(18)
+            .background {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.22), radius: 20, y: 8)
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(Color.black, lineWidth: 2.5)
+            )
+            .frame(maxWidth: .infinity)
+    }
+    
+    private var titleCapsule: some View {
+        ZStack {
+            Capsule().fill(Color.white)
+            Capsule().strokeBorder(Color.black, lineWidth: 2.5)
         }
-        .padding(.horizontal)
+    }
+    
+    private func sectionLabel(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.heavy))
+            .foregroundColor(.black)
+    }
+    
+    private func infoChip(_ text: String, filled: Bool = false) -> some View {
+        Text(text)
+            .font(.caption.weight(.heavy))
+            .foregroundColor(.black)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(filled ? stickerBlue.opacity(0.22) : Color.white)
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(Color.black, lineWidth: 2))
+    }
+    
+    private func stickerButton(title: String, systemImage: String, fill: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.heavy))
+            Text(title)
+                .font(.subheadline.weight(.heavy))
+        }
+        .foregroundColor(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(fill)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.black, lineWidth: 2.5)
+        )
     }
     
     private var spotDetailStack: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 14) {
             photoSection
             streetViewCard
             clipsCard
             nameCard
-            descriptionCard
+            if hasSpotDescription {
+                descriptionCard
+            }
             ratingCard
             addedCard
             commentsSection
             if isOwner {
                 deleteSpotButton
             }
-            Spacer(minLength: 40)
         }
-        .padding(.vertical)
+        .padding(.top, 8)
+        .padding(.bottom, 32)
     }
     
     private var streetViewCard: some View {
@@ -207,17 +259,15 @@ struct SpotDetailView: View {
             } label: {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Label("Clips", systemImage: "film")
-                            .font(.headline)
-                            .foregroundColor(.blue)
+                        sectionLabel("Clips", systemImage: "film")
                         Text("Watch tricks filmed at this spot")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(inkMuted)
                     }
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.black)
                 }
             }
             .buttonStyle(.plain)
@@ -237,8 +287,11 @@ struct SpotDetailView: View {
                 }
                 .tabViewStyle(.page)
                 .frame(height: 200)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .padding(.horizontal)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.black, lineWidth: 2.5)
+                )
                 
                 if isOwner {
                     HStack {
@@ -275,20 +328,23 @@ struct SpotDetailView: View {
                     coordinate: CLLocationCoordinate2D(latitude: spot.latitude, longitude: spot.longitude),
                     height: 200
                 )
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.black, lineWidth: 2.5)
+                )
                 if isOwner {
                     Button(action: { showPhotoPickerSheet = true }) {
-                        Label(isUploadingPhoto ? "Uploading…" : "Add your own photo", systemImage: "photo.badge.plus")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color(.systemGray5))
-                            .cornerRadius(10)
+                        stickerButton(
+                            title: isUploadingPhoto ? "UPLOADING..." : "ADD YOUR OWN PHOTO",
+                            systemImage: "photo.badge.plus",
+                            fill: stickerBlue
+                        )
                     }
                     .buttonStyle(.plain)
                     .disabled(isUploadingPhoto)
                 }
             }
-            .padding(.horizontal)
         }
     }
     
@@ -297,8 +353,9 @@ struct SpotDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top, spacing: 12) {
                     Text(spot.name)
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
+                        .font(.title3.weight(.heavy))
+                        .tracking(0.4)
+                        .foregroundColor(.black)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     
                     if Auth.auth().currentUser != nil, let spotId = spot.id {
@@ -309,7 +366,7 @@ struct SpotDetailView: View {
                             } else {
                                 Image(systemName: userService.isFavorite(spotId: spotId) ? "heart.fill" : "heart")
                                     .font(.system(size: 28, weight: .semibold))
-                                    .foregroundColor(userService.isFavorite(spotId: spotId) ? .red : .secondary)
+                                    .foregroundColor(userService.isFavorite(spotId: spotId) ? .red : .black)
                                     .frame(width: 36, height: 36)
                             }
                         }
@@ -321,51 +378,31 @@ struct SpotDetailView: View {
                 
                 HStack(spacing: 8) {
                     if let difficulty = spot.difficulty {
-                        Text(difficulty)
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.12))
-                            .foregroundColor(.blue)
-                            .clipShape(Capsule())
+                        infoChip(difficulty, filled: true)
                     }
                     if let status = spot.status {
-                        Text(status)
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.orange.opacity(0.12))
-                            .foregroundColor(.orange)
-                            .clipShape(Capsule())
+                        infoChip(status)
                     }
                 }
                 
                 if let tags = spot.tags, !tags.isEmpty {
                     HStack(spacing: 6) {
                         ForEach(tags.prefix(4), id: \.self) { tag in
-                            Text(tag)
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(Color(.systemGray6))
-                                .clipShape(Capsule())
+                            infoChip(tag)
                         }
                     }
                 }
             }
         }
-        .padding(.top)
     }
     
     private var descriptionCard: some View {
         detailCard {
             VStack(alignment: .leading, spacing: 12) {
-                Label("Description", systemImage: "text.bubble.fill")
-                    .font(.headline)
-                    .foregroundColor(.blue)
+                sectionLabel("Description", systemImage: "text.bubble.fill")
                 Text(spot.comment)
-                    .font(.body)
-                    .foregroundColor(.primary)
+                    .font(.body.weight(.medium))
+                    .foregroundColor(.black)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -375,18 +412,16 @@ struct SpotDetailView: View {
     private var ratingCard: some View {
         detailCard {
             VStack(alignment: .leading, spacing: 12) {
-                Label("Spot Rating", systemImage: "star.bubble.fill")
-                    .font(.headline)
-                    .foregroundColor(.blue)
+                sectionLabel("Spot Rating", systemImage: "star.bubble.fill")
                 
                 HStack(spacing: 8) {
                     Text(ratingCount > 0 ? String(format: "%.1f", averageRating) : "No ratings yet")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.primary)
+                        .foregroundColor(.black)
                     if ratingCount > 0 {
                         Text("(\(ratingCount))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(inkMuted)
                     }
                 }
                 
@@ -397,7 +432,7 @@ struct SpotDetailView: View {
                         } label: {
                             Image(systemName: star <= userRating ? "star.fill" : "star")
                                 .font(.title3)
-                                .foregroundColor(.yellow)
+                                .foregroundColor(star <= userRating ? Color(red: 0.85, green: 0.55, blue: 0.05) : .black)
                         }
                         .buttonStyle(.plain)
                         .disabled(isSubmittingRating || Auth.auth().currentUser == nil)
@@ -406,12 +441,12 @@ struct SpotDetailView: View {
                 
                 if Auth.auth().currentUser == nil {
                     Text("Sign in to rate this spot.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(inkMuted)
                 } else if userRating > 0 {
                     Text("Your rating: \(userRating) / 5")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(inkMuted)
                 }
             }
         }
@@ -420,25 +455,20 @@ struct SpotDetailView: View {
     private var addedCard: some View {
         detailCard {
             VStack(alignment: .leading, spacing: 12) {
-                Label("Added", systemImage: "calendar")
-                    .font(.headline)
-                    .foregroundColor(.blue)
+                sectionLabel("Added", systemImage: "calendar")
                 
                 Text(spot.createdAt, style: .date)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.black)
                 
                 Button {
                     openInMapsDirections()
                 } label: {
-                    Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule().fill(Color.blue.opacity(0.12))
-                        )
+                    stickerButton(
+                        title: "DIRECTIONS",
+                        systemImage: "arrow.triangle.turn.up.right.diamond.fill",
+                        fill: stickerBlue
+                    )
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 4)
@@ -451,11 +481,11 @@ struct SpotDetailView: View {
                     ) {
                         HStack(spacing: 4) {
                             Image(systemName: "person.fill")
-                                .font(.caption)
+                                .font(.caption.weight(.bold))
                             Text("by @\(username)")
-                                .font(.subheadline)
-                                .foregroundColor(.blue)
+                                .font(.subheadline.weight(.bold))
                         }
+                        .foregroundColor(.black)
                     }
                     .buttonStyle(.plain)
                     .padding(.top, 4)
@@ -467,43 +497,39 @@ struct SpotDetailView: View {
     private var commentsSection: some View {
         detailCard {
             VStack(alignment: .leading, spacing: 12) {
-                Label("Comments", systemImage: "bubble.left.and.bubble.right.fill")
-                    .font(.headline)
-                    .foregroundColor(.blue)
+                sectionLabel("Comments", systemImage: "bubble.left.and.bubble.right.fill")
                 
                 HStack(alignment: .bottom, spacing: 8) {
                     TextField("Add a comment...", text: $newCommentText, axis: .vertical)
                         .textFieldStyle(.plain)
-                        .padding(12)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
+                        .font(.subheadline)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.black, lineWidth: 2)
+                        )
                         .lineLimit(1...4)
                     
                     Button(action: { Task { await postComment() } }) {
                         if isPostingComment {
                             ProgressView()
                                 .tint(.white)
-                                .scaleEffect(0.9)
                         } else {
-                            HStack(spacing: 6) {
-                                Image(systemName: "arrow.up.circle.fill")
-                                    .font(.title3)
-                                Text("Post")
-                                    .fontWeight(.semibold)
-                            }
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.title2)
                         }
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
+                    .frame(width: 44, height: 44)
+                    .background(stickerBlue)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.black, lineWidth: 2.5)
                     )
-                    .cornerRadius(10)
                     .disabled(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPostingComment)
                     .opacity(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
                 }
@@ -522,78 +548,111 @@ struct SpotDetailView: View {
     }
     
     private var deleteSpotButton: some View {
-        HStack {
-            Spacer(minLength: 0)
-            Button(action: { showDeleteAlert = true }) {
-                HStack {
-                    Spacer()
-                    if isDeleting {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Image(systemName: "trash.fill")
-                    }
-                    Text(isDeleting ? "Deleting..." : "Delete Spot")
-                        .fontWeight(.semibold)
-                    Spacer()
-                }
-                .foregroundColor(.white)
-                .padding(.vertical, 16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.red)
-                        .shadow(color: .red.opacity(0.3), radius: 10, x: 0, y: 5)
-                )
-            }
-            .frame(maxWidth: 360)
-            .disabled(isDeleting)
-            Spacer(minLength: 0)
+        Button(action: { showDeleteAlert = true }) {
+            stickerButton(
+                title: isDeleting ? "DELETING..." : "DELETE SPOT",
+                systemImage: "trash.fill",
+                fill: Color.red
+            )
         }
-        .padding(.horizontal)
+        .buttonStyle(.plain)
+        .disabled(isDeleting)
+        .frame(maxWidth: 400)
+        .frame(maxWidth: .infinity)
+    }
+    
+    private var headerCircleButton: some View {
+        Circle()
+            .fill(Color.white)
+            .overlay(Circle().stroke(Color.black, lineWidth: 2.5))
+    }
+    
+    private var spotDetailHeader: some View {
+        VStack(spacing: 10) {
+            Capsule()
+                .fill(Color.white)
+                .overlay(Capsule().stroke(Color.black, lineWidth: 2))
+                .frame(width: 52, height: 7)
+                .padding(.top, 8)
+                .accessibilityHidden(true)
+            
+            ZStack {
+                Text(spot.name)
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(.black)
+                    .lineLimit(1)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(titleCapsule)
+                    .padding(.horizontal, 88)
+                
+                HStack(spacing: 10) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.subheadline.weight(.heavy))
+                            .foregroundColor(.black)
+                            .frame(width: 36, height: 36)
+                            .background(headerCircleButton)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
+                    
+                    Spacer()
+                    
+                    if Auth.auth().currentUser != nil, let spotId = spot.id {
+                        Button {
+                            Task { await toggleFavorite() }
+                        } label: {
+                            Group {
+                                if isTogglingFavorite {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: userService.isFavorite(spotId: spotId) ? "heart.fill" : "heart")
+                                        .font(.subheadline.weight(.heavy))
+                                        .foregroundColor(userService.isFavorite(spotId: spotId) ? .red : .black)
+                                }
+                            }
+                            .frame(width: 36, height: 36)
+                            .background(headerCircleButton)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isTogglingFavorite)
+                    }
+                    
+                    Button {
+                        showReportSheet = true
+                    } label: {
+                        Image(systemName: "flag")
+                            .font(.subheadline.weight(.heavy))
+                            .foregroundColor(.black)
+                            .frame(width: 36, height: 36)
+                            .background(headerCircleButton)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Report spot")
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 6)
+        }
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.05)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                ArtBackdrop(imageName: "CityImage", dim: 0.22, starBand: .header)
                 
-                ScrollView {
+                ScrollView(.vertical, showsIndicators: false) {
                     spotDetailStack
+                        .padding(.horizontal, 20)
                 }
-                .navigationTitle("Spot Details")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        if Auth.auth().currentUser != nil, let spotId = spot.id {
-                            Button(action: { Task { await toggleFavorite() } }) {
-                                if isTogglingFavorite {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                } else {
-                                    Image(systemName: userService.isFavorite(spotId: spotId) ? "heart.fill" : "heart")
-                                        .foregroundColor(userService.isFavorite(spotId: spotId) ? .red : .secondary)
-                                }
-                            }
-                            .disabled(isTogglingFavorite)
-                        }
-                    }
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        HStack(spacing: 16) {
-                            Button(action: { showReportSheet = true }) {
-                                Image(systemName: "flag")
-                                    .foregroundColor(.secondary)
-                            }
-                            Button("Done") {
-                                dismiss()
-                            }
-                        }
-                    }
-                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                spotDetailHeader
+            }
                 .sheet(isPresented: $showReportSheet) {
                     ReportSpotView(
                         spot: spot,
@@ -692,11 +751,10 @@ struct SpotDetailView: View {
                 .onDisappear {
                     commentService.stopListening()
                 }
-            }
-            }
         }
-        
-        private func postComment() async {
+    }
+    
+    private func postComment() async {
             guard let spotId = spot.id else { return }
             let text = newCommentText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { return }
@@ -856,15 +914,15 @@ struct SpotDetailView: View {
                             Text("@\(username)")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
-                                .foregroundColor(.blue)
+                                .foregroundColor(.black)
                         } else {
                             Text("Anonymous")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(Color.black.opacity(0.7))
                         }
                         Text(comment.text)
-                            .font(.body)
-                            .foregroundColor(.primary)
+                            .font(.body.weight(.medium))
+                            .foregroundColor(.black)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -876,10 +934,10 @@ struct SpotDetailView: View {
                         Button(action: { Task { try? await commentService.toggleLike(spotId: spotId, comment: comment) } }) {
                             HStack(spacing: 4) {
                                 Image(systemName: comment.hasLiked(userId: currentUserId ?? "") ? "hand.thumbsup.fill" : "hand.thumbsup")
-                                    .foregroundColor(comment.hasLiked(userId: currentUserId ?? "") ? .blue : .secondary)
+                                    .foregroundColor(comment.hasLiked(userId: currentUserId ?? "") ? Color(red: 0.08, green: 0.32, blue: 0.78) : .black)
                                 Text("\(comment.likeCount)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(.black)
                             }
                         }
                         .buttonStyle(.plain)
@@ -887,21 +945,25 @@ struct SpotDetailView: View {
                         Button(action: { Task { try? await commentService.toggleDislike(spotId: spotId, comment: comment) } }) {
                             HStack(spacing: 4) {
                                 Image(systemName: comment.hasDisliked(userId: currentUserId ?? "") ? "hand.thumbsdown.fill" : "hand.thumbsdown")
-                                    .foregroundColor(comment.hasDisliked(userId: currentUserId ?? "") ? .red : .secondary)
+                                    .foregroundColor(comment.hasDisliked(userId: currentUserId ?? "") ? .red : .black)
                                 Text("\(comment.dislikeCount)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(.black)
                             }
                         }
                         .buttonStyle(.plain)
                     }
                 }
                 Text(comment.createdAt, style: .relative)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(Color.black.opacity(0.65))
             }
             .padding(12)
-            .background(Color(.systemGray6))
+            .background(Color.white)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.black, lineWidth: 1.5)
+            )
             .cornerRadius(10)
             .contextMenu {
                 if comment.createdBy != currentUserId {

@@ -22,7 +22,7 @@ struct FavoritesListView: View {
     
     var body: some View {
         ZStack {
-            ArtBackdrop(imageName: "FavoritesBackground", dim: 0.28)
+            ArtBackdrop(imageName: "FavoritesBackground", dim: 0.28, starBand: .headerRaised)
             
             Group {
                 if !isLoggedIn {

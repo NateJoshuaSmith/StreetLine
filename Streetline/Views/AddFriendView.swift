@@ -18,6 +18,9 @@ struct AddFriendView: View {
     @State private var isSearching = false
     @State private var errorMessage: String?
     
+    private let actionGreen = Color(red: 0.12, green: 0.62, blue: 0.38)
+    private let inkMuted = Color.black.opacity(0.72)
+    
     private var currentUid: String? {
         Auth.auth().currentUser?.uid
     }
@@ -28,71 +31,59 @@ struct AddFriendView: View {
         return searchResults.filter { $0.uid != uid && !userService.isBlocked(uid: $0.uid) }
     }
     
+    private var trimmedQuery: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    TextField("Search by username", text: $searchText)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .onSubmit { Task { await runSearch() } }
-                }
-                .padding(12)
-                .background(Color(.systemGray6))
-                .cornerRadius(10)
-                .padding(.horizontal)
-                .padding(.top, 8)
+            ZStack {
+                ArtBackdrop(imageName: "FriendsBackground", dim: 0.42, starBand: .header)
                 
-                if let error = errorMessage {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .padding(.horizontal)
-                        .padding(.top, 4)
-                }
-                
-                if isSearching {
-                    Spacer()
-                    ProgressView("Searching...")
-                    Spacer()
-                } else if displayResults.isEmpty && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Spacer()
-                    EmptyStateCard(
-                        title: "No users found",
-                        systemImage: "person.crop.circle.badge.questionmark",
-                        message: "Try a different username."
-                    )
-                    Spacer()
-                } else if displayResults.isEmpty {
-                    Spacer()
-                    Text("Enter a username to search")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                } else {
-                    List {
-                        ForEach(displayResults, id: \.uid) { profile in
-                            AddFriendRow(
-                                profile: profile,
-                                isFriend: userService.isFriend(uid: profile.uid),
-                                isPendingSent: userService.hasPendingSentRequest(toUid: profile.uid),
-                                onAdd: { Task { await sendFriendRequest(profile.uid) } }
+                VStack(spacing: 14) {
+                    StreetlineCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("USERNAME")
+                                .font(.caption.weight(.heavy))
+                                .foregroundColor(.black)
+                            
+                            HStack(spacing: 10) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.body.weight(.bold))
+                                    .foregroundColor(.black)
+                                TextField("Search by username", text: $searchText)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                                    .foregroundColor(.black)
+                                    .onSubmit { Task { await runSearch() } }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(Color.black, lineWidth: 2)
                             )
+                            
+                            if let error = errorMessage {
+                                Text(error)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(.red)
+                            }
                         }
                     }
-                    .listStyle(.plain)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    
+                    resultsBody
                 }
             }
-            .navigationTitle("Add friend")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        dismiss()
-                        onDismiss()
-                    }
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StreetlineSheetHeader(title: "Add friend") {
+                    dismiss()
+                    onDismiss()
                 }
             }
             .task {
@@ -106,6 +97,63 @@ struct AddFriendView: View {
                     searchResults = []
                     errorMessage = nil
                 }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var resultsBody: some View {
+        if isSearching {
+            StreetlineCard {
+                HStack(spacing: 12) {
+                    ProgressView()
+                        .tint(.black)
+                    Text("Searching…")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.black)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 20)
+            Spacer()
+        } else if displayResults.isEmpty && !trimmedQuery.isEmpty {
+            EmptyStateCard(
+                title: "No users found",
+                systemImage: "person.crop.circle.badge.questionmark",
+                message: "Try a different username."
+            )
+        } else if displayResults.isEmpty {
+            StreetlineCard {
+                VStack(spacing: 8) {
+                    Text("Find a skater")
+                        .font(.headline.weight(.heavy))
+                        .foregroundColor(.black)
+                    Text("Type at least 2 letters of their username.")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(inkMuted)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 20)
+            Spacer()
+        } else {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 12) {
+                    ForEach(displayResults, id: \.uid) { profile in
+                        StreetlineCard {
+                            AddFriendRow(
+                                profile: profile,
+                                isFriend: userService.isFriend(uid: profile.uid),
+                                isPendingSent: userService.hasPendingSentRequest(toUid: profile.uid),
+                                actionGreen: actionGreen,
+                                onAdd: { Task { await sendFriendRequest(profile.uid) } }
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 32)
             }
         }
     }
@@ -147,6 +195,7 @@ private struct AddFriendRow: View {
     let profile: UserProfile
     let isFriend: Bool
     let isPendingSent: Bool
+    let actionGreen: Color
     let onAdd: () -> Void
     
     var body: some View {
@@ -154,30 +203,47 @@ private struct AddFriendRow: View {
             avatarView
             VStack(alignment: .leading, spacing: 4) {
                 Text(profile.username)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                    .font(.headline.weight(.heavy))
+                    .foregroundColor(.black)
                 Text("@\(profile.username)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.black.opacity(0.72))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            
             if isFriend {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
+                    .font(.title3)
+                    .foregroundColor(actionGreen)
             } else if isPendingSent {
-                Text("Pending")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(.systemGray5))
-                    .cornerRadius(8)
+                Text("PENDING")
+                    .font(.caption.weight(.heavy))
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.black, lineWidth: 2)
+                    )
             } else {
-                Button("Add", action: onAdd)
-                    .buttonStyle(.borderedProminent)
+                Button(action: onAdd) {
+                    Text("ADD")
+                        .font(.caption.weight(.heavy))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(actionGreen)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.black, lineWidth: 2.5)
+                        )
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.vertical, 4)
     }
     
     private var avatarView: some View {
@@ -195,6 +261,7 @@ private struct AddFriendRow: View {
                 }
                 .frame(width: 44, height: 44)
                 .clipShape(Circle())
+                .overlay(Circle().stroke(Color.black, lineWidth: 2))
             } else {
                 avatarPlaceholder
             }
@@ -203,19 +270,14 @@ private struct AddFriendRow: View {
     
     private var avatarPlaceholder: some View {
         Circle()
-            .fill(
-                LinearGradient(
-                    colors: [.blue, .purple],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
+            .fill(Color(red: 0.18, green: 0.78, blue: 1.0))
             .frame(width: 44, height: 44)
             .overlay(
                 Image(systemName: "person.fill")
-                    .foregroundColor(.white)
-                    .font(.body)
+                    .foregroundColor(.black)
+                    .font(.body.weight(.bold))
             )
+            .overlay(Circle().stroke(Color.black, lineWidth: 2))
     }
 }
 

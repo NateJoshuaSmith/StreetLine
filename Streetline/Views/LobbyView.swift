@@ -39,7 +39,7 @@ struct LobbyView: View {
     
     var body: some View {
         ZStack {
-            ArtBackdrop(imageName: "LobbyBackgroudImage", dim: 0.22)
+            ArtBackdrop(imageName: "LobbyBackgroudImage", dim: 0.22, starBand: .lobby)
             
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in

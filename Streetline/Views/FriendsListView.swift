@@ -17,7 +17,6 @@ struct FriendsListView: View {
     @State private var isLoading = true
     @State private var showAddFriend = false
     @State private var profileToOpen: UserProfile?
-    @State private var chatToOpen: UserProfile?
     
     private var isLoggedIn: Bool {
         Auth.auth().currentUser != nil
@@ -74,7 +73,7 @@ struct FriendsListView: View {
                                         Spacer(minLength: 0)
                                         
                                         HStack(spacing: 10) {
-                                            FriendIdentity(profile: profile)
+                                            profileButton(for: profile)
                                             Circle()
                                                 .fill(Color.red)
                                                 .frame(width: 8, height: 8)
@@ -113,18 +112,11 @@ struct FriendsListView: View {
                                         Spacer(minLength: 0)
                                         
                                         HStack(spacing: 10) {
-                                            Button {
-                                                profileToOpen = profile
-                                            } label: {
-                                                FriendIdentity(profile: profile)
-                                            }
-                                            .buttonStyle(.plain)
+                                            profileButton(for: profile)
                                             
                                             Spacer(minLength: 8)
                                             
-                                            Button {
-                                                chatToOpen = profile
-                                            } label: {
+                                            NavigationLink(destination: ConversationView(friendProfile: profile)) {
                                                 Image(systemName: "bubble.left.and.bubble.right.fill")
                                                     .foregroundColor(.blue)
                                                     .font(.body)
@@ -138,6 +130,7 @@ struct FriendsListView: View {
                                                     }
                                             }
                                             .buttonStyle(.plain)
+                                            .navigationLinkIndicatorVisibility(.hidden)
                                             .frame(width: 32, height: 32)
                                             .accessibilityLabel("Message \(profile.username)")
                                             
@@ -172,7 +165,7 @@ struct FriendsListView: View {
                                         Spacer(minLength: 0)
                                         
                                         HStack(spacing: 10) {
-                                            FriendIdentity(profile: profile)
+                                            profileButton(for: profile)
                                             Spacer(minLength: 8)
                                             Text("Pending")
                                                 .font(.caption)
@@ -237,33 +230,20 @@ struct FriendsListView: View {
             await loadFriendsWithCache()
         }
         .background(
-            Group {
-                NavigationLink(
-                    destination: Group {
-                        if let profile = profileToOpen {
-                            UserProfileView(profile: profile)
-                        }
-                    },
-                    isActive: Binding(
-                        get: { profileToOpen != nil },
-                        set: { if !$0 { profileToOpen = nil } }
-                    )
-                ) { EmptyView() }
-                .hidden()
-                
-                NavigationLink(
-                    destination: Group {
-                        if let profile = chatToOpen {
-                            ConversationView(friendProfile: profile)
-                        }
-                    },
-                    isActive: Binding(
-                        get: { chatToOpen != nil },
-                        set: { if !$0 { chatToOpen = nil } }
-                    )
-                ) { EmptyView() }
-                .hidden()
+            NavigationLink(
+                destination: Group {
+                    if let profile = profileToOpen {
+                        UserProfileView(profile: profile)
+                    }
+                },
+                isActive: Binding(
+                    get: { profileToOpen != nil },
+                    set: { if !$0 { profileToOpen = nil } }
+                )
+            ) {
+                EmptyView()
             }
+            .hidden()
         )
         .sheet(isPresented: $showAddFriend) {
             AddFriendView(userService: userService) {
@@ -378,6 +358,16 @@ struct FriendsListView: View {
         } catch {
             print("Error accepting request: \(error)")
         }
+    }
+    
+    private func profileButton(for profile: UserProfile) -> some View {
+        Button {
+            profileToOpen = profile
+        } label: {
+            FriendIdentity(profile: profile)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("View \(profile.username)'s profile")
     }
     
     private func declineRequest(_ fromUid: String) async {

@@ -31,8 +31,8 @@ struct StreetViewCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Street view", systemImage: "binoculars.fill")
-                .font(.headline)
-                .foregroundColor(.blue)
+                .font(.caption.weight(.heavy))
+                .foregroundColor(.black)
             
             if isLoading {
                 ZStack {
@@ -54,21 +54,23 @@ struct StreetViewCard: View {
                     showFullScreen = true
                 } label: {
                     Label("Open full street view", systemImage: "arrow.up.left.and.arrow.down.right")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.subheadline.weight(.heavy))
+                        .foregroundColor(.black)
                 }
                 .buttonStyle(.bordered)
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Look Around isn’t available at this spot. You can still open Google Street View.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.black)
                     Button {
                         StreetViewLinks.openGoogleStreetView(coordinate: coordinate)
                     } label: {
                         Label("Open Google Street View", systemImage: "globe")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.subheadline.weight(.heavy))
+                            .foregroundColor(.black)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                 }
             }
         }

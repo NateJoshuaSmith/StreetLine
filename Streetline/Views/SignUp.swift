@@ -30,7 +30,7 @@ struct SignUp: View {
     
     var body: some View {
         ZStack {
-            ArtBackdrop(imageName: "CityImage", dim: 0.2)
+            ArtBackdrop(imageName: "CityImage", dim: 0.2, starBand: .logo)
             
             GeometryReader { geo in
                 ScrollView(.vertical, showsIndicators: false) {
