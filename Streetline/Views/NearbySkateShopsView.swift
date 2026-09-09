@@ -13,9 +13,9 @@ struct NearbySkateShopsView: View {
     
     var body: some View {
         NearbyPlacesListView(
-            title: "Skate Shops",
-            loadingText: "Finding skate shops nearby…",
-            emptyTitle: "No skate shops nearby",
+            title: "Shops",
+            loadingText: "Finding shops nearby…",
+            emptyTitle: "No shops nearby",
             emptyIcon: "storefront",
             latitude: latitude,
             longitude: longitude,

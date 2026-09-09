@@ -922,6 +922,7 @@ struct MapScreen: View {
                     Button(action: { showSkateShopsSheet = true }) {
                         mapToolbarIcon("storefront.fill", color: .orange)
                     }
+                    .accessibilityLabel("Shops")
                     
                     Button(action: { showSkateParksSheet = true }) {
                         mapToolbarIcon("figure.skateboarding", color: .green)

@@ -225,9 +225,34 @@ struct GooglePlacesService {
     }
     
     private static func isSkatePark(_ place: NearbyPlace) -> Bool {
-        let text = "\(place.name) \(place.formattedAddress ?? "")".lowercased()
-        if isSurfOnly(text) { return false }
-        return true
+        let name = place.name.lowercased()
+        if name.contains("parking") && !containsSkateTerm(name) { return false }
+        if isGenericParkName(name) { return false }
+        return containsSkateTerm(name)
+    }
+    
+    /// City / national / dog parks that Places returns for a "skate park" search.
+    private static func isGenericParkName(_ name: String) -> Bool {
+        let generic = [
+            "national park",
+            "state park",
+            "regional park",
+            "county park",
+            "city park",
+            "neighborhood park",
+            "community park",
+            "dog park",
+            "amusement park",
+            "theme park",
+            "water park",
+            "industrial park",
+            "business park",
+            "office park",
+            "rv park",
+            "mobile home park",
+            "playground"
+        ]
+        return generic.contains { name.contains($0) }
     }
     
     private static func isSurfOnly(_ text: String) -> Bool {
