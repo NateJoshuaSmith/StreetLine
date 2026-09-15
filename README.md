@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Streetline/Assets.xcassets/UpdatedLogo.imageset/Streetline.png" alt="Streetline" width="160" />
+</p>
+
 # Streetline
 
 Streetline is an iOS skate-spot app for finding, sharing, and talking about places to skate. Sign in, drop pins on a map, rate and comment on spots, save favorites, add friends, post when you want a session, and chat in the lobby.
@@ -17,12 +21,6 @@ iPhone only. Built with SwiftUI, MapKit, and Firebase.
 - Nearby skate shops and skate parks
 - Report and block on posts, comments, clips, chat, and accounts
 - Settings: username, email, skate profile, blocked users, delete account, and contact support
-
-<p>
-  <img src="docs/screenshots/home.jpg" alt="Home" width="180" />
-  <img src="docs/screenshots/map.png" alt="Map" width="180" />
-  <img src="docs/screenshots/skate-with.png" alt="Skate With" width="180" />
-</p>
 
 ## How the app works
 
