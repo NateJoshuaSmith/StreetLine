@@ -18,6 +18,16 @@ iPhone only. Built with SwiftUI, MapKit, and Firebase.
 - Report and block on posts, comments, clips, chat, and accounts
 - Settings: username, email, skate profile, blocked users, delete account, and contact support
 
+## Screenshots
+
+| Home | Map | Spot |
+| --- | --- | --- |
+| <img src="docs/screenshots/home.jpg" alt="Home: Map, Skate With, Favorites, and Lobby" width="280" /> | <img src="docs/screenshots/map.png" alt="Map with a skate-spot pin and preview card" width="280" /> | <img src="docs/screenshots/spot-detail.jpg" alt="Spot detail with photos, street view, and clips" width="280" /> |
+
+| Skate With | Lobby | Chat |
+| --- | --- | --- |
+| <img src="docs/screenshots/skate-with.png" alt="Skate With session board" width="280" /> | <img src="docs/screenshots/lobby.jpg" alt="Lobby global chat" width="280" /> | <img src="docs/screenshots/chat.png" alt="One-to-one chat with a friend" width="280" /> |
+
 ## How the app works
 
 ### Accounts and login
@@ -200,6 +210,7 @@ Streetline/
 ├── storage.rules                # Storage security rules
 ├── firestore.indexes.json
 ├── firebase.json
+├── docs/screenshots/          # README and store preview shots
 └── Streetline.xcodeproj
 ```
 
