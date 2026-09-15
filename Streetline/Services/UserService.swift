@@ -110,8 +110,8 @@ class UserService: ObservableObject {
         guard let uid = authService.currentUserId else {
             throw NSError(domain: "UserService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
         }
-        if let age, (age < 13 || age > 99) {
-            throw NSError(domain: "UserService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Age must be between 13 and 99"])
+        if let age, (age < AgeRules.minimumAge || age > AgeRules.maximumAge) {
+            throw NSError(domain: "UserService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Age must be between \(AgeRules.minimumAge) and \(AgeRules.maximumAge)"])
         }
         let trick = favoriteTrick?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let skater = favoriteSkater?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -688,6 +688,10 @@ class UserService: ObservableObject {
         await deleteStorageFolder(path: "\(avatarPathPrefix)/\(uid).jpg", isFile: true)
         await deleteStorageFolder(path: "spotImages/\(uid)", isFile: false)
         
+        await deleteAuthoredDocs(collectionGroup: "comments", field: "createdBy", uid: uid)
+        await deleteAuthoredDocs(collectionGroup: "ratings", field: "userId", uid: uid)
+        await deleteAuthoredDocs(collectionGroup: "clips", field: "createdBy", uid: uid, deleteClipFiles: true)
+        
         let spots = try await db.collection(spotsCollectionName)
             .whereField("createdBy", isEqualTo: uid)
             .getDocuments()
@@ -708,6 +712,7 @@ class UserService: ObservableObject {
             .whereField("createdBy", isEqualTo: uid)
             .getDocuments()
         for doc in posts?.documents ?? [] {
+            guard doc.documentID != CommunityPost.lobbyDocumentId else { continue }
             await deleteSubcollection(parent: doc.reference, name: "comments")
             try? await doc.reference.delete()
         }
@@ -717,7 +722,7 @@ class UserService: ObservableObject {
         await deleteQuery(db.collection("reports").whereField("reportedBy", isEqualTo: uid))
         await deleteQuery(db.collection("reports").whereField("reportedUserId", isEqualTo: uid))
         await deleteQuery(db.collection("threads").whereField("participantIds", arrayContains: uid))
-        await deleteQuery(db.collection("communityPosts").document("lobby").collection("comments").whereField("createdBy", isEqualTo: uid))
+        await deleteQuery(db.collection("communityPosts").document(CommunityPost.lobbyDocumentId).collection("comments").whereField("senderId", isEqualTo: uid))
         
         for friendId in friendIds {
             try? await db.collection(collectionName).document(friendId).setData([
@@ -731,19 +736,65 @@ class UserService: ObservableObject {
         UserService.clearBlockedCache()
     }
     
+    private func deleteAuthoredDocs(
+        collectionGroup name: String,
+        field: String,
+        uid: String,
+        deleteClipFiles: Bool = false
+    ) async {
+        let query = db.collectionGroup(name).whereField(field, isEqualTo: uid)
+        while true {
+            guard let snapshot = try? await query.limit(to: 200).getDocuments(),
+                  !snapshot.documents.isEmpty else { return }
+            var deletedAny = false
+            for doc in snapshot.documents {
+                if deleteClipFiles {
+                    let data = doc.data()
+                    if let url = data["videoURL"] as? String {
+                        await deleteStorageURL(url)
+                    }
+                    if let url = data["thumbnailURL"] as? String {
+                        await deleteStorageURL(url)
+                    }
+                }
+                do {
+                    try await doc.reference.delete()
+                    deletedAny = true
+                } catch {
+                    continue
+                }
+            }
+            if snapshot.documents.count < 200 || !deletedAny { return }
+        }
+    }
+    
     private func deleteQuery(_ query: Query) async {
-        let snapshot = try? await query.getDocuments()
-        for doc in snapshot?.documents ?? [] {
-            await deleteSubcollection(parent: doc.reference, name: "messages")
-            await deleteSubcollection(parent: doc.reference, name: "comments")
-            try? await doc.reference.delete()
+        while true {
+            guard let snapshot = try? await query.limit(to: 200).getDocuments(),
+                  !snapshot.documents.isEmpty else { return }
+            var deletedAny = false
+            for doc in snapshot.documents {
+                await deleteSubcollection(parent: doc.reference, name: "messages")
+                await deleteSubcollection(parent: doc.reference, name: "comments")
+                do {
+                    try await doc.reference.delete()
+                    deletedAny = true
+                } catch {
+                    continue
+                }
+            }
+            if snapshot.documents.count < 200 || !deletedAny { return }
         }
     }
     
     private func deleteSubcollection(parent: DocumentReference, name: String) async {
-        let snapshot = try? await parent.collection(name).limit(to: 200).getDocuments()
-        for doc in snapshot?.documents ?? [] {
-            try? await doc.reference.delete()
+        while true {
+            let snapshot = try? await parent.collection(name).limit(to: 200).getDocuments()
+            guard let documents = snapshot?.documents, !documents.isEmpty else { return }
+            for doc in documents {
+                try? await doc.reference.delete()
+            }
+            if documents.count < 200 { return }
         }
     }
     

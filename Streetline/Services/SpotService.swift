@@ -138,9 +138,15 @@ class SpotService: ObservableObject {
         }
     }
     
-    // Update spot coordinates (for dragging)
+    // Update spot coordinates (for dragging). Owner only — Firestore rules also enforce this.
     func updateSpotLocation(_ spot: SkateSpot, latitude: Double, longitude: Double) async throws {
         guard let spotId = spot.id else { return }
+        guard let userId = authService.currentUserId else {
+            throw NSError(domain: "SpotService", code: 401, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
+        }
+        guard spot.createdBy == userId else {
+            throw NSError(domain: "SpotService", code: 403, userInfo: [NSLocalizedDescriptionKey: "You can only move spots you created"])
+        }
         
         do {
             try await db.collection(collectionName).document(spotId).updateData([

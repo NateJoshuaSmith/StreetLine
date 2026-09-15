@@ -10,8 +10,17 @@ import SwiftUI
 struct SetUsernameView: View {
     @EnvironmentObject var viewModel: LoginViewModel
     @State private var username = ""
+    @State private var birthDate = Date()
     @State private var isSaving = false
     @State private var errorMessage: String?
+    
+    private var oldestBirthDate: Date {
+        Calendar.current.date(byAdding: .year, value: -AgeRules.maximumAge, to: Date()) ?? Date.distantPast
+    }
+    
+    private var isOldEnough: Bool {
+        AgeRules.isOldEnough(birthDate: birthDate)
+    }
     
     var body: some View {
         NavigationView {
@@ -26,6 +35,25 @@ struct SetUsernameView: View {
                     .textFieldStyle(.roundedBorder)
                     .padding(.horizontal, 32)
                     .autocapitalization(.none)
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Birthday")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
+                    DatePicker(
+                        "Birthday",
+                        selection: $birthDate,
+                        in: oldestBirthDate...Date(),
+                        displayedComponents: .date
+                    )
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
+                    Text(AgeRules.validationMessage(birthDate: birthDate) ?? "Streetline is for ages \(AgeRules.minimumAge) and up.")
+                        .font(.caption)
+                        .foregroundColor(isOldEnough ? .secondary : .red)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 32)
                 
                 if let error = errorMessage {
                     Text(error)
@@ -46,11 +74,11 @@ struct SetUsernameView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(username.isEmpty ? Color.gray : Color.blue)
+                    .background(username.isEmpty || !isOldEnough ? Color.gray : Color.blue)
                     .foregroundColor(.white)
                     .cornerRadius(12)
                 }
-                .disabled(username.isEmpty || isSaving)
+                .disabled(username.isEmpty || !isOldEnough || isSaving)
                 .padding(.horizontal, 32)
                 .padding(.top, 8)
                 
@@ -64,6 +92,10 @@ struct SetUsernameView: View {
     
     private func saveUsername() {
         guard !username.isEmpty else { return }
+        guard isOldEnough else {
+            errorMessage = AgeRules.validationMessage(birthDate: birthDate)
+            return
+        }
         isSaving = true
         errorMessage = nil
         

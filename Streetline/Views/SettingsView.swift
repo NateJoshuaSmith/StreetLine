@@ -425,7 +425,7 @@ struct EditSkateProfileView: View {
                     TextField("Favorite trick", text: $favoriteTrick)
                     TextField("Favorite skater", text: $favoriteSkater)
                 } footer: {
-                    Text("Shown on your public profile. Age must be 13 or older if you add it.")
+                    Text("Shown on your public profile. Age must be \(AgeRules.minimumAge) or older if you add it.")
                 }
                 
                 if let errorMessage {

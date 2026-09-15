@@ -1,0 +1,156 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function onlyRemovedSelfFromFriendIds() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['friendIds'])
+        && resource.data.friendIds.hasAny([request.auth.uid])
+        && !request.resource.data.friendIds.hasAny([request.auth.uid])
+        && request.resource.data.friendIds.size() == resource.data.friendIds.size() - 1;
+    }
+
+    function isSpotOwner(spotId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/skateSpots/$(spotId))
+        && get(/databases/$(database)/documents/skateSpots/$(spotId)).data.createdBy == request.auth.uid;
+    }
+
+    function isPostOwner(postId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/communityPosts/$(postId))
+        && get(/databases/$(database)/documents/communityPosts/$(postId)).data.createdBy == request.auth.uid;
+    }
+
+    function isThreadParticipant(threadId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/threads/$(threadId))
+        && get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds.hasAny([request.auth.uid]);
+    }
+
+    function isExpiredLobbyComment() {
+      return resource.data.keys().hasAny(['createdAt'])
+        && request.time > resource.data.createdAt + duration.value(24, 'h');
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isUser(userId)
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if isUser(userId)
+        || (isSignedIn() && onlyRemovedSelfFromFriendIds());
+      allow delete: if isUser(userId);
+    }
+
+    match /skateSpots/{spotId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if isSignedIn()
+        && resource.data.createdBy == request.auth.uid;
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isSignedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy']);
+        allow delete: if isSignedIn()
+          && (resource.data.createdBy == request.auth.uid || isSpotOwner(spotId));
+      }
+
+      match /ratings/{ratingId} {
+        allow read: if isSignedIn();
+        allow create, update: if isUser(ratingId)
+          && request.resource.data.userId == request.auth.uid;
+        allow delete: if isUser(ratingId) || isSpotOwner(spotId);
+      }
+
+      match /clips/{clipId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.createdBy == request.auth.uid;
+        allow delete: if isSignedIn()
+          && (resource.data.createdBy == request.auth.uid || isSpotOwner(spotId));
+      }
+    }
+
+    match /communityPosts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow delete: if isSignedIn()
+        && resource.data.createdBy == request.auth.uid
+        && postId != 'lobby';
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.createdBy == request.auth.uid;
+        allow delete: if isSignedIn()
+          && (
+            resource.data.createdBy == request.auth.uid
+            || isPostOwner(postId)
+            || (postId == 'lobby' && isExpiredLobbyComment())
+          );
+      }
+    }
+
+    match /friendRequests/{requestId} {
+      allow read: if isSignedIn()
+        && (resource.data.fromUid == request.auth.uid
+            || resource.data.toUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid != request.auth.uid;
+      allow update: if isSignedIn()
+        && (resource.data.fromUid == request.auth.uid
+            || resource.data.toUid == request.auth.uid)
+        && request.resource.data.fromUid == resource.data.fromUid
+        && request.resource.data.toUid == resource.data.toUid;
+      allow delete: if isSignedIn()
+        && (resource.data.fromUid == request.auth.uid
+            || resource.data.toUid == request.auth.uid);
+    }
+
+    match /reports/{reportId} {
+      allow read: if isSignedIn()
+        && (resource.data.reportedBy == request.auth.uid
+            || resource.data.reportedUserId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.reportedBy == request.auth.uid;
+      allow delete: if isSignedIn()
+        && (resource.data.reportedBy == request.auth.uid
+            || resource.data.reportedUserId == request.auth.uid);
+    }
+
+    match /threads/{threadId} {
+      allow read: if isSignedIn()
+        && resource.data.participantIds.hasAny([request.auth.uid]);
+      allow create: if isSignedIn()
+        && request.resource.data.participantIds.hasAny([request.auth.uid])
+        && request.resource.data.participantIds.size() == 2;
+      allow update: if isSignedIn()
+        && resource.data.participantIds.hasAny([request.auth.uid])
+        && request.resource.data.participantIds == resource.data.participantIds;
+      allow delete: if isSignedIn()
+        && resource.data.participantIds.hasAny([request.auth.uid]);
+
+      match /messages/{messageId} {
+        allow read: if isThreadParticipant(threadId);
+        allow create: if isThreadParticipant(threadId)
+          && request.resource.data.senderId == request.auth.uid;
+        allow delete: if isThreadParticipant(threadId);
+      }
+    }
+  }
+}

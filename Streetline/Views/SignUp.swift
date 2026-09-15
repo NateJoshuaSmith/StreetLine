@@ -12,6 +12,7 @@ struct SignUp: View {
     @State private var password = ""
     @State private var username = ""
     @State private var confirmPassword = ""
+    @State private var birthDate = Date()
     @State private var isSigningUp = false
     @State private var signUpError: String?
     @State private var showContactSupport = false
@@ -20,12 +21,25 @@ struct SignUp: View {
     
     private let stickerMagenta = Color(red: 1.0, green: 0.32, blue: 0.72)
     
+    private var oldestBirthDate: Date {
+        Calendar.current.date(byAdding: .year, value: -AgeRules.maximumAge, to: Date()) ?? Date.distantPast
+    }
+    
     private var passwordsMatch: Bool {
         password == confirmPassword || confirmPassword.isEmpty
     }
     
+    private var isOldEnough: Bool {
+        AgeRules.isOldEnough(birthDate: birthDate)
+    }
+    
     private var isFormValid: Bool {
-        !email.isEmpty && !password.isEmpty && !username.isEmpty && !confirmPassword.isEmpty && passwordsMatch
+        !email.isEmpty
+            && !password.isEmpty
+            && !username.isEmpty
+            && !confirmPassword.isEmpty
+            && passwordsMatch
+            && isOldEnough
     }
     
     var body: some View {
@@ -101,6 +115,22 @@ struct SignUp: View {
             compactField(title: "Confirm password") {
                 SecureField("Confirm your password", text: $confirmPassword)
             }
+            
+            compactField(title: "Birthday") {
+                DatePicker(
+                    "Birthday",
+                    selection: $birthDate,
+                    in: oldestBirthDate...Date(),
+                    displayedComponents: .date
+                )
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            
+            Text(AgeRules.validationMessage(birthDate: birthDate) ?? "Streetline is for ages \(AgeRules.minimumAge) and up.")
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(isOldEnough ? .secondary : .red)
             
             if !confirmPassword.isEmpty {
                 HStack(spacing: 4) {
@@ -183,6 +213,10 @@ struct SignUp: View {
     }
     
     private func submitSignUp() {
+        guard isOldEnough else {
+            signUpError = AgeRules.validationMessage(birthDate: birthDate)
+            return
+        }
         Task {
             isSigningUp = true
             signUpError = nil

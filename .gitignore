@@ -5,3 +5,7 @@ Secrets.xcconfig
 xcuserdata/
 *.xcuserstate
 derivedData/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
