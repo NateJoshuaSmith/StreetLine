@@ -175,11 +175,12 @@ These lists need a Google Places API key in `Secrets.xcconfig` (`GOOGLE_PLACES_A
 Settings (home wrench menu) shows your avatar, `@username`, and email.
 
 - Tap the photo to upload a new avatar (Firebase Storage).
-- **Change username** updates the name stored on your profile (and denormalized names on spots you created).
+- **Change username** updates the name stored on your profile and the denormalized `@username` on spots, Skate With posts, replies, lobby messages, and clips you created.
 - **Change email** updates Firebase Auth and the profile document (requires your current password).
 - **Skate profile** — optional public age (13–99), skill level, favorite trick, and favorite skater.
 - **Blocked users** — list and unblock.
 - **Delete account** — requires your password and typing DELETE. Removes your Auth user, profile, spots, photos, clips, posts, messages, and related Firestore/Storage data. The shared lobby document is kept.
+- **Privacy Policy** opens [Streetline-Privacy](https://github.com/NateJoshuaSmith/Streetline-Privacy).
 - **Contact Support** opens a form. Subject and message are required; **Open in Mail** drafts an email to `streetlinesupport@gmail.com` that includes the app version. You can also copy the support address.
 
 ## Safety
@@ -234,7 +235,8 @@ Streetline/
 
 ## Requirements
 
-- Xcode that can build the project’s iOS 26.1 deployment target
+- Xcode 15 or later
+- iOS 17 or later
 - iPhone (the target is iPhone-only; it can still run scaled on iPad)
 - Firebase project (Auth, Firestore, Storage) with the repo rules published
 - Google Cloud Places API key (optional, for nearby shops and parks)

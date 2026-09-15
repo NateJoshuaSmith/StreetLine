@@ -24,6 +24,9 @@ struct SettingsView: View {
     @State private var showBlockedUsers = false
     @State private var showEditSkateProfile = false
     @State private var loadedProfile: UserProfile?
+    @Environment(\.openURL) private var openURL
+    
+    private let privacyPolicyURL = URL(string: "https://github.com/NateJoshuaSmith/Streetline-Privacy")!
     
     var body: some View {
         ZStack {
@@ -195,6 +198,17 @@ struct SettingsView: View {
             )
             
             sectionLabel("Help")
+            
+            Button {
+                openURL(privacyPolicyURL)
+            } label: {
+                settingsRow(
+                    title: "Privacy Policy",
+                    systemImage: "lock.shield.fill",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
             
             Button(action: { showContactSupport = true }) {
                 settingsRow(

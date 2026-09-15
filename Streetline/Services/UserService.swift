@@ -263,7 +263,7 @@ class UserService: ObservableObject {
             "username": trimmed,
             "usernameLowercase": trimmedLower
         ], merge: true)
-        // Update denormalized createdByUsername on spots and comments so "by @username" stays correct
+        // Update denormalized createdByUsername on spots, posts, comments, and clips
         try await updateDenormalizedUsername(uid: uid, newUsername: trimmed)
     }
     
@@ -278,17 +278,54 @@ class UserService: ObservableObject {
         ], merge: true)
     }
     
-    /// Update createdByUsername on all spots owned by this user so "by @username" stays correct.
+    /// Update createdByUsername everywhere this user is attributed so @username stays correct.
     private func updateDenormalizedUsername(uid: String, newUsername: String) async throws {
-        let spotsSnapshot = try await db.collection(spotsCollectionName)
-            .whereField("createdBy", isEqualTo: uid)
-            .getDocuments()
-        guard !spotsSnapshot.documents.isEmpty else { return }
-        let batch = db.batch()
-        for doc in spotsSnapshot.documents {
-            batch.updateData(["createdByUsername": newUsername], forDocument: doc.reference)
+        let usernameFields = ["createdByUsername": newUsername]
+        try await updateFields(
+            on: db.collection(spotsCollectionName).whereField("createdBy", isEqualTo: uid),
+            data: usernameFields
+        )
+        try await updateFields(
+            on: db.collection("communityPosts").whereField("createdBy", isEqualTo: uid),
+            data: usernameFields
+        )
+        try await updateFields(
+            on: db.collectionGroup("comments").whereField("createdBy", isEqualTo: uid),
+            data: usernameFields
+        )
+        try await updateFields(
+            on: db.collectionGroup("clips").whereField("createdBy", isEqualTo: uid),
+            data: usernameFields
+        )
+        try await updateFields(
+            on: db.collection("communityPosts")
+                .document(CommunityPost.lobbyDocumentId)
+                .collection("comments")
+                .whereField("senderId", isEqualTo: uid),
+            data: [
+                "createdByUsername": newUsername,
+                "senderUsername": newUsername
+            ]
+        )
+    }
+    
+    private func updateFields(on query: Query, data: [String: Any]) async throws {
+        var last: DocumentSnapshot?
+        while true {
+            var page = query.limit(to: 400)
+            if let last {
+                page = page.start(afterDocument: last)
+            }
+            let snapshot = try await page.getDocuments()
+            if snapshot.documents.isEmpty { return }
+            let batch = db.batch()
+            for doc in snapshot.documents {
+                batch.updateData(data, forDocument: doc.reference)
+            }
+            try await batch.commit()
+            last = snapshot.documents.last
+            if snapshot.documents.count < 400 { return }
         }
-        try await batch.commit()
     }
     
     /// Check if user has a profile (for existing users migrating to username system)

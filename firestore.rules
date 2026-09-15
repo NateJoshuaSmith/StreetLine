@@ -34,6 +34,12 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds.hasAny([request.auth.uid]);
     }
 
+    function onlyAuthorUsernameUpdate() {
+      return resource.data.createdBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['createdByUsername', 'senderUsername']);
+    }
+
     function isExpiredLobbyComment() {
       return resource.data.keys().hasAny(['createdAt'])
         && request.time > resource.data.createdAt + duration.value(24, 'h');
@@ -62,8 +68,13 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow create: if isSignedIn()
           && request.resource.data.createdBy == request.auth.uid;
-        allow update: if isSignedIn()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy']);
+        allow update: if isSignedIn() && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy'])
+          || (
+            resource.data.createdBy == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['createdByUsername'])
+          )
+        );
         allow delete: if isSignedIn()
           && (resource.data.createdBy == request.auth.uid || isSpotOwner(spotId));
       }
@@ -79,6 +90,7 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow create: if isSignedIn()
           && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isSignedIn() && onlyAuthorUsernameUpdate();
         allow delete: if isSignedIn()
           && (resource.data.createdBy == request.auth.uid || isSpotOwner(spotId));
       }
@@ -88,6 +100,9 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdBy == resource.data.createdBy;
       allow delete: if isSignedIn()
         && resource.data.createdBy == request.auth.uid
         && postId != 'lobby';
@@ -96,6 +111,7 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow create: if isSignedIn()
           && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isSignedIn() && onlyAuthorUsernameUpdate();
         allow delete: if isSignedIn()
           && (
             resource.data.createdBy == request.auth.uid
