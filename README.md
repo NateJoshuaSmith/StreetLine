@@ -18,15 +18,11 @@ iPhone only. Built with SwiftUI, MapKit, and Firebase.
 - Report and block on posts, comments, clips, chat, and accounts
 - Settings: username, email, skate profile, blocked users, delete account, and contact support
 
-## Screenshots
-
-| Home | Map | Spot |
-| --- | --- | --- |
-| <img src="docs/screenshots/home.jpg" alt="Home: Map, Skate With, Favorites, and Lobby" width="280" /> | <img src="docs/screenshots/map.png" alt="Map with a skate-spot pin and preview card" width="280" /> | <img src="docs/screenshots/spot-detail.jpg" alt="Spot detail with photos, street view, and clips" width="280" /> |
-
-| Skate With | Lobby | Chat |
-| --- | --- | --- |
-| <img src="docs/screenshots/skate-with.png" alt="Skate With session board" width="280" /> | <img src="docs/screenshots/lobby.jpg" alt="Lobby global chat" width="280" /> | <img src="docs/screenshots/chat.png" alt="One-to-one chat with a friend" width="280" /> |
+<p>
+  <img src="docs/screenshots/home.jpg" alt="Home" width="180" />
+  <img src="docs/screenshots/map.png" alt="Map" width="180" />
+  <img src="docs/screenshots/skate-with.png" alt="Skate With" width="180" />
+</p>
 
 ## How the app works
 
@@ -51,6 +47,8 @@ Your username is what other people see on spots, comments, posts, clips, and pro
 
 ### Home
 
+<img src="docs/screenshots/home.jpg" alt="Home: Map, Skate With, Favorites, and Lobby" width="280" />
+
 Home is the hub after you log in. Background art shifts with time of day (including a night sky). The top bar has:
 
 - **Friends** — your friends list, incoming requests, and pending outgoing requests. A red badge appears when you have unread chats or incoming friend requests.
@@ -64,6 +62,8 @@ Home is the hub after you log in. Background art shifts with time of day (includ
 | **LOBBY** | Global chat |
 
 ### Map
+
+<img src="docs/screenshots/map.png" alt="Map with a skate-spot pin and preview card" width="280" />
 
 The map loads skate spots from Firestore and centers on your location when location permission is granted. Without permission it starts near San Francisco. Use the location button to re-center on yourself, or search for a place to “travel” the map (filters then use that destination).
 
@@ -102,6 +102,8 @@ The filter bar hides pins that do not match the selected tag, difficulty, fun le
 
 ### Spot details
 
+<img src="docs/screenshots/spot-detail.jpg" alt="Spot detail with photos, street view, and clips" width="280" />
+
 The spot sheet is the full page for one pin.
 
 - **Photos** — swipe through uploaded photos. The spot owner can add or delete photos.
@@ -124,6 +126,8 @@ Favorites are stored on your user profile in Firestore, not only on the device.
 
 ### Friends and chat
 
+<img src="docs/screenshots/chat.png" alt="One-to-one chat with a friend" width="280" />
+
 Open **Friends** from Home or the map.
 
 - **Requests** — accept or decline incoming friend requests.
@@ -136,6 +140,8 @@ Profiles show avatar, username, join date, optional skate details (age, skill, f
 **Chat** is a 1:1 thread. Opening a conversation creates or reuses a thread in Firestore and listens for new messages in real time. You can report the conversation or block the other person.
 
 ### Skate With
+
+<img src="docs/screenshots/skate-with.png" alt="Skate With session board" width="280" />
 
 **Skate With** is a live board for session posts.
 
@@ -150,6 +156,8 @@ Profiles show avatar, username, join date, optional skate details (age, skill, f
 Posts and replies are stored in Firestore and attributed to your username.
 
 ### Lobby
+
+<img src="docs/screenshots/lobby.jpg" alt="Lobby global chat" width="280" />
 
 **Lobby** is a global chat for everyone who is signed in. Messages live for 24 hours, then they are treated as expired and cleaned up. Report or block from a message. Blocked users’ messages are hidden.
 
